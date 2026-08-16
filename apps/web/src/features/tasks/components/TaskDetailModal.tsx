@@ -697,15 +697,19 @@ export function TaskDetailModal({
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                          <InputNumber
-                            min={5}
-                            max={1440}
-                            step={15}
-                            value={logMinutes}
-                            onChange={(v) => setLogMinutes(v || 60)}
-                            addonAfter="phút"
-                            className="w-full sm:w-40"
-                          />
+                          <Space.Compact className="w-full sm:w-44">
+                            <InputNumber
+                              min={5}
+                              max={1440}
+                              step={15}
+                              value={logMinutes}
+                              onChange={(v) => setLogMinutes(v || 60)}
+                              className="w-full"
+                            />
+                            <Button disabled className="!text-zinc-500 !bg-zinc-100 dark:!bg-zinc-800 pointer-events-none">
+                              phút
+                            </Button>
+                          </Space.Compact>
                           <Input
                             placeholder="Mô tả công việc đã hoàn thành..."
                             value={logDescription}
