@@ -36,31 +36,37 @@ class ComprehensiveDemoSeeder extends Seeder
         $usersData = [
             [
                 'email' => 'admin@tasks.local',
+                'username' => 'admin',
                 'name' => 'System Admin',
                 'role' => $superAdminRole,
             ],
             [
                 'email' => 'pm@tasks.local',
+                'username' => 'pm',
                 'name' => 'Alex Rivera (Product Manager)',
                 'role' => $projectManagerRole,
             ],
             [
                 'email' => 'dev1@tasks.local',
+                'username' => 'dev1',
                 'name' => 'Nguyen Van A (Senior Backend Dev)',
                 'role' => $memberRole,
             ],
             [
                 'email' => 'dev2@tasks.local',
+                'username' => 'dev2',
                 'name' => 'Tran Thi B (Frontend Engineer)',
                 'role' => $memberRole,
             ],
             [
                 'email' => 'qa@tasks.local',
+                'username' => 'qa',
                 'name' => 'Le Van C (QA Lead)',
                 'role' => $memberRole,
             ],
             [
                 'email' => 'devops@tasks.local',
+                'username' => 'devops',
                 'name' => 'Pham Van D (DevOps Specialist)',
                 'role' => $memberRole,
             ],
@@ -71,6 +77,7 @@ class ComprehensiveDemoSeeder extends Seeder
             $user = User::firstOrCreate(
                 ['email' => $u['email']],
                 [
+                    'username' => $u['username'],
                     'name' => $u['name'],
                     'password' => Hash::make('password'),
                     'is_active' => true,
@@ -185,6 +192,20 @@ class ComprehensiveDemoSeeder extends Seeder
             ]
         );
 
+        $project3 = Project::firstOrCreate(
+            ['workspace_id' => $engWorkspace->id, 'key' => 'CORE-ENG'],
+            [
+                'name' => 'Core Product Engineering',
+                'description' => 'Flagship product engineering workspace for enterprise workflow automation and task tracking.',
+                'type' => 'scrum',
+                'status' => 'active',
+                'workflow_id' => $jiraWorkflow->id,
+                'lead_id' => $pmUser->id,
+                'start_date' => now()->subDays(30),
+                'target_end_date' => now()->addDays(90),
+            ]
+        );
+
         // Project Memberships
         $project1->members()->syncWithoutDetaching([
             $pmUser->id => ['role_in_project' => 'lead'],
@@ -198,6 +219,15 @@ class ComprehensiveDemoSeeder extends Seeder
             $dev2User->id => ['role_in_project' => 'lead'],
             $dev1User->id => ['role_in_project' => 'developer'],
             $qaUser->id => ['role_in_project' => 'reporter'],
+        ]);
+
+        $project3->members()->syncWithoutDetaching([
+            $adminUser->id => ['role_in_project' => 'lead'],
+            $pmUser->id => ['role_in_project' => 'lead'],
+            $dev1User->id => ['role_in_project' => 'developer'],
+            $dev2User->id => ['role_in_project' => 'developer'],
+            $qaUser->id => ['role_in_project' => 'reporter'],
+            $devopsUser->id => ['role_in_project' => 'developer'],
         ]);
 
         // 7. Epics
@@ -222,6 +252,14 @@ class ComprehensiveDemoSeeder extends Seeder
             [
                 'summary' => 'FCM push notifications for task assignment, status updates, and mentions.',
                 'color' => '#f59e0b',
+            ]
+        );
+
+        $epic4 = Epic::firstOrCreate(
+            ['project_id' => $project3->id, 'name' => 'Epic: Enterprise Workflow & Task Hub'],
+            [
+                'summary' => 'Integrated Task Management with Sprint planning, Gantt timelines, and audit logs.',
+                'color' => '#6366f1',
             ]
         );
 
@@ -253,6 +291,26 @@ class ComprehensiveDemoSeeder extends Seeder
                 'status' => 'future',
                 'start_date' => now()->addDays(15),
                 'end_date' => now()->addDays(29),
+            ]
+        );
+
+        $sprint24 = Sprint::firstOrCreate(
+            ['project_id' => $project3->id, 'name' => 'Sprint 24 (Sprint Hiện Tại)'],
+            [
+                'goal' => 'Hoàn thiện hệ thống xác thực, phân quyền và giao diện Task Detail 1000px.',
+                'status' => 'active',
+                'start_date' => now()->subDays(3),
+                'end_date' => now()->addDays(11),
+            ]
+        );
+
+        $sprint25 = Sprint::firstOrCreate(
+            ['project_id' => $project3->id, 'name' => 'Sprint 25 (Kế hoạch tiếp theo)'],
+            [
+                'goal' => 'Tích hợp cổng thông báo Reverb WebSockets và xuất báo cáo PDF/Excel.',
+                'status' => 'future',
+                'start_date' => now()->addDays(12),
+                'end_date' => now()->addDays(26),
             ]
         );
 
@@ -478,6 +536,116 @@ class ComprehensiveDemoSeeder extends Seeder
                 ]
             );
             $createdTasks[$t['task_number']] = $task;
+        }
+
+        // Seed tasks for CORE-ENG Project
+        $coreEngTasks = [
+            [
+                'task_number' => 'CORE-ENG-101',
+                'title' => 'Thiết kế Schema Multi-tenant & Workspaces',
+                'type' => 'story',
+                'status_slug' => 'done',
+                'priority' => 'high',
+                'assignee' => $dev1User,
+                'reporter' => $pmUser,
+                'epic' => $epic4,
+                'sprint' => $sprint24,
+                'estimate_minutes' => 480,
+                'time_spent_minutes' => 480,
+                'description' => 'Hoàn thiện kiến trúc cơ sở dữ liệu PostgreSQL đa người dùng và RBAC.',
+            ],
+            [
+                'task_number' => 'CORE-ENG-102',
+                'title' => 'Tích hợp Auth Sanctum & LDAP SSO Provider',
+                'type' => 'task',
+                'status_slug' => 'in_progress',
+                'priority' => 'urgent',
+                'assignee' => $dev1User,
+                'reporter' => $pmUser,
+                'epic' => $epic4,
+                'sprint' => $sprint24,
+                'estimate_minutes' => 360,
+                'time_spent_minutes' => 180,
+                'description' => 'Xác thực tài khoản qua chuẩn Sanctum Bearer Token và đồng bộ LDAP Active Directory.',
+            ],
+            [
+                'task_number' => 'CORE-ENG-103',
+                'title' => 'Bảng Kanban Ant Design & Task Detail Modal 1000px',
+                'type' => 'story',
+                'status_slug' => 'testing',
+                'priority' => 'high',
+                'assignee' => $dev2User,
+                'reporter' => $qaUser,
+                'epic' => $epic4,
+                'sprint' => $sprint24,
+                'estimate_minutes' => 300,
+                'time_spent_minutes' => 240,
+                'description' => 'Giao diện bảng kéo thả Kanban, lọc đa tiêu chí và modal 1000px chỉnh sửa toàn diện.',
+            ],
+            [
+                'task_number' => 'CORE-ENG-104',
+                'title' => 'Quản lý chu kỳ Sprints & Phân rã Backlog',
+                'type' => 'task',
+                'status_slug' => 'in_progress',
+                'priority' => 'medium',
+                'assignee' => $dev2User,
+                'reporter' => $pmUser,
+                'epic' => $epic4,
+                'sprint' => $sprint24,
+                'estimate_minutes' => 240,
+                'time_spent_minutes' => 120,
+                'description' => 'Tạo Sprint mới, khởi động Sprint và chuyển giao task giữa các chu kỳ làm việc.',
+            ],
+            [
+                'task_number' => 'CORE-ENG-105',
+                'title' => 'Tích hợp Reverb WebSockets & Realtime Activity Stream',
+                'type' => 'story',
+                'status_slug' => 'ready',
+                'priority' => 'high',
+                'assignee' => $devopsUser,
+                'reporter' => $pmUser,
+                'epic' => $epic4,
+                'sprint' => $sprint25,
+                'estimate_minutes' => 360,
+                'time_spent_minutes' => 0,
+                'description' => 'Broadcasting sự kiện thời gian thực khi task thay đổi trạng thái hoặc có comment mới.',
+            ],
+            [
+                'task_number' => 'CORE-ENG-106',
+                'title' => 'Xuất báo cáo tiến độ Sprint sang PDF & Excel',
+                'type' => 'task',
+                'status_slug' => 'backlog',
+                'priority' => 'low',
+                'assignee' => null,
+                'reporter' => $pmUser,
+                'epic' => null,
+                'sprint' => null,
+                'estimate_minutes' => 180,
+                'time_spent_minutes' => 0,
+                'description' => 'Báo cáo tổng hợp khối lượng công việc theo nhân sự và tỷ lệ hoàn thành.',
+            ],
+        ];
+
+        foreach ($coreEngTasks as $ct) {
+            $status = $statuses[$ct['status_slug']];
+            Task::firstOrCreate(
+                ['project_id' => $project3->id, 'task_number' => $ct['task_number']],
+                [
+                    'title' => $ct['title'],
+                    'description' => $ct['description'],
+                    'type' => $ct['type'],
+                    'status_id' => $status->id,
+                    'priority' => $ct['priority'],
+                    'assignee_id' => $ct['assignee']?->id,
+                    'reporter_id' => $ct['reporter']->id,
+                    'epic_id' => $ct['epic']?->id,
+                    'sprint_id' => $ct['sprint']?->id,
+                    'due_date' => now()->addDays(rand(2, 14)),
+                    'estimate_minutes' => $ct['estimate_minutes'],
+                    'time_spent_minutes' => $ct['time_spent_minutes'],
+                    'order' => rand(1, 10),
+                ]
+            );
         }
 
         // Link Subtask TASK-11 to Parent TASK-4

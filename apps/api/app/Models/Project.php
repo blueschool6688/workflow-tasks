@@ -28,6 +28,26 @@ class Project extends Model
         'target_end_date' => 'date',
     ];
 
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if ($field) {
+            return parent::resolveRouteBinding($value, $field);
+        }
+
+        if (\Illuminate\Support\Str::isUuid($value)) {
+            return $this->where('id', $value)->first();
+        }
+
+        $cleanKey = str_replace('-', '', strtoupper($value));
+
+        return $this->where('key', strtoupper($value))
+            ->orWhere('key', strtolower($value))
+            ->orWhere('key', $value)
+            ->orWhere('key', $cleanKey)
+            ->orWhere('key', str_replace('_', '-', strtoupper($value)))
+            ->first();
+    }
+
     public function workspace()
     {
         return $this->belongsTo(Workspace::class);
@@ -59,5 +79,10 @@ class Project extends Model
     public function sprints()
     {
         return $this->hasMany(Sprint::class);
+    }
+
+    public function epics()
+    {
+        return $this->hasMany(Epic::class);
     }
 }

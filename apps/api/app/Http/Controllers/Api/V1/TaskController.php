@@ -46,6 +46,38 @@ class TaskController extends Controller
         return TaskResource::collection($tasks);
     }
 
+    /** Kanban Board columns with tasks grouped by status */
+    public function board(Project $project): JsonResponse
+    {
+        $this->authorize('view', $project);
+
+        $workflow = $project->workflow ?? \App\Models\Workflow::where('is_default', true)->first();
+        $statuses = $workflow ? $workflow->statuses()->orderBy('order')->get() : collect();
+
+        if ($statuses->isEmpty()) {
+            $statuses = \App\Models\WorkflowStatus::orderBy('order')->get();
+        }
+
+        $tasks = $project->tasks()
+            ->with(['status', 'assignee', 'reporter'])
+            ->orderBy('order')
+            ->get();
+
+        $columns = $statuses->map(function ($status) use ($tasks) {
+            $colTasks = $tasks->where('status_id', $status->id)->values();
+
+            return [
+                'id'       => $status->id,
+                'title'    => $status->name,
+                'category' => $status->category,
+                'color'    => $status->color,
+                'tasks'    => TaskResource::collection($colTasks),
+            ];
+        });
+
+        return response()->json(['data' => $columns]);
+    }
+
     public function store(Request $request, Project $project): JsonResponse
     {
         $this->authorize('create', Task::class);
@@ -53,10 +85,10 @@ class TaskController extends Controller
         $validated = $request->validate([
             'title'            => 'required|string|max:500',
             'description'      => 'nullable|string',
-            'type'             => 'required|in:story,task,bug,subtask',
-            'status_id'        => 'required|uuid|exists:workflow_statuses,id',
-            'priority'         => 'required|in:critical,high,medium,low,none',
-            'assignee_id'      => 'nullable|uuid|exists:users,id',
+            'type'             => 'sometimes|in:story,task,bug,subtask',
+            'status_id'        => 'nullable|uuid|exists:workflow_statuses,id',
+            'priority'         => 'sometimes|in:critical,high,medium,low,none',
+            'assignee_id'      => 'nullable|exists:users,id',
             'sprint_id'        => 'nullable|uuid|exists:sprints,id',
             'epic_id'          => 'nullable|uuid|exists:epics,id',
             'parent_task_id'   => 'nullable|uuid|exists:tasks,id',
@@ -64,6 +96,20 @@ class TaskController extends Controller
             'estimate_minutes' => 'nullable|integer|min:0',
             'labels'           => 'nullable|array',
         ]);
+
+        if (empty($validated['type'])) {
+            $validated['type'] = 'task';
+        }
+
+        if (empty($validated['priority'])) {
+            $validated['priority'] = 'medium';
+        }
+
+        if (empty($validated['status_id'])) {
+            $workflow = $project->workflow ?? \App\Models\Workflow::where('is_default', true)->first();
+            $firstStatus = $workflow ? $workflow->statuses()->orderBy('order')->first() : \App\Models\WorkflowStatus::orderBy('order')->first();
+            $validated['status_id'] = $firstStatus?->id;
+        }
 
         $lastOrder = Task::where('project_id', $project->id)
             ->where('status_id', $validated['status_id'])
@@ -95,9 +141,10 @@ class TaskController extends Controller
             'type'             => 'sometimes|in:story,task,bug,subtask',
             'status_id'        => 'sometimes|uuid|exists:workflow_statuses,id',
             'priority'         => 'sometimes|in:critical,high,medium,low,none',
-            'assignee_id'      => 'nullable|uuid|exists:users,id',
-            'sprint_id'        => 'nullable|uuid|exists:sprints,id',
+            'assignee_id'      => 'nullable|exists:users,id',
+            'sprint_id'        => 'nullable',
             'epic_id'          => 'nullable|uuid|exists:epics,id',
+            'parent_task_id'   => 'nullable|uuid|exists:tasks,id',
             'due_date'         => 'nullable|date',
             'estimate_minutes' => 'nullable|integer|min:0',
             'labels'           => 'nullable|array',
@@ -105,7 +152,7 @@ class TaskController extends Controller
 
         $task->update($validated);
 
-        return response()->json(['data' => new TaskResource($task->fresh()->load(['status', 'assignee', 'reporter']))]);
+        return response()->json(['data' => new TaskResource($task->fresh()->load(['status', 'assignee', 'reporter', 'sprint', 'epic']))]);
     }
 
     public function destroy(Task $task): JsonResponse

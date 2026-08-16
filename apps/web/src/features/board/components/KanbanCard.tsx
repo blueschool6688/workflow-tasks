@@ -47,7 +47,7 @@ export function KanbanCard({ task, onClickTask }: KanbanCardProps) {
       {/* Top Row: Key & Priority */}
       <div className="flex items-center justify-between text-xs">
         <span className="font-mono font-bold text-accent-600 dark:text-accent-400 group-hover:underline">
-          {task.id}
+          {task.task_number || task.id}
         </span>
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${priorityColors[task.priority].split(' ')[0]}`} />

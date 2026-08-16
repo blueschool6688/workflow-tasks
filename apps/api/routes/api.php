@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('dashboard')->group(function () {
         Route::get('/my-work', [DashboardController::class, 'myWork']);
         Route::get('/stats', [DashboardController::class, 'stats']);
+        Route::get('/summary', [DashboardController::class, 'summary']);
         Route::get('/calendar', [DashboardController::class, 'calendar']);
     });
 
@@ -64,6 +65,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Projects
     Route::apiResource('projects', ProjectController::class);
+    Route::get('/projects/{project}/summary', [DashboardController::class, 'projectSummary']);
+    Route::get('/projects/{project}/board', [TaskController::class, 'board']);
+    Route::get('/projects/{project}/worklogs', [TaskWorkLogController::class, 'projectLogs']);
     Route::post('/projects/{project}/members', [ProjectController::class, 'addMember']);
     Route::delete('/projects/{project}/members/{user}', [ProjectController::class, 'removeMember']);
 

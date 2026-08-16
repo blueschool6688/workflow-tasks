@@ -18,7 +18,10 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->input('username'))->first();
+        $usernameOrEmail = $request->input('username');
+        $user = User::where('email', $usernameOrEmail)
+            ->orWhere('username', $usernameOrEmail)
+            ->first();
 
         if (! $user || ! Hash::check($request->input('password'), $user->password)) {
             throw ValidationException::withMessages([
@@ -35,9 +38,10 @@ class AuthController extends Controller
         $token = $user->createToken('client-web-token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Đăng nhập thành công',
-            'token'   => $token,
-            'user'    => $this->formatUser($user),
+            'message'    => 'Đăng nhập thành công',
+            'token'      => $token,
+            'user'       => $this->formatUser($user),
+            'workspaces' => $user->workspaces()->get(['workspaces.id', 'workspaces.name', 'workspaces.slug']),
         ]);
     }
 
@@ -101,6 +105,7 @@ class AuthController extends Controller
         return [
             'id'                   => $user->id,
             'name'                 => $user->name,
+            'username'             => $user->username,
             'email'                => $user->email,
             'avatar'               => $user->avatar ? asset('storage/' . $user->avatar) : null,
             'role'                 => $user->role ?? 'member',

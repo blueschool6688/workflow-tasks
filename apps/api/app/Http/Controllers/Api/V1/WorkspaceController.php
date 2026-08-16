@@ -76,7 +76,7 @@ class WorkspaceController extends Controller
         $this->authorize('manageMembers', $workspace);
 
         $request->validate([
-            'user_id' => 'required|uuid|exists:users,id',
+            'user_id' => 'required|exists:users,id',
             'role'    => 'required|in:admin,member,viewer',
         ]);
 

@@ -1,12 +1,12 @@
 import { api } from '@/lib/axios';
 
 export interface Project {
-  id: number;
+  id: string | number;
   name: string;
   key: string;
   description?: string;
   type: 'scrum' | 'kanban' | 'freeform';
-  status: 'active' | 'archived';
+  status?: 'active' | 'archived';
   members_count?: number;
   open_tasks_count?: number;
   updated_at: string;

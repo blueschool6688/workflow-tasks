@@ -36,6 +36,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'admin@tasks.local'],
             [
                 'name' => 'System Admin',
+                'username' => 'admin',
                 'password' => Hash::make('password'),
                 'is_active' => true,
             ]

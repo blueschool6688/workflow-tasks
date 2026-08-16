@@ -1,87 +1,165 @@
 'use client';
 
 import * as React from 'react';
-import { Calendar as CalendarIcon, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { Card, Calendar, Badge, Button, Spin } from 'antd';
+import type { CalendarProps } from 'antd';
+import { CalendarOutlined, PlusOutlined } from '@ant-design/icons';
+import dayjs, { Dayjs } from 'dayjs';
+import { api } from '@/lib/axios';
+import { CreateTaskModal } from '@/features/tasks/components/CreateTaskModal';
+import { TaskDetailModal } from '@/features/tasks/components/TaskDetailModal';
+import { KanbanTask } from '@/features/board/api/boardApi';
+
+interface CalendarTaskItem {
+  id: string;
+  task_number: string;
+  title: string;
+  due_date: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: string;
+}
 
 export function ProjectCalendarPage({ projectKey }: { projectKey: string }) {
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
-  const monthName = 'Tháng 8, 2026';
+  const pKey = projectKey.toUpperCase();
+  const [tasks, setTasks] = React.useState<CalendarTaskItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
+  const [selectedTask, setSelectedTask] = React.useState<KanbanTask | null>(null);
 
-  const scheduledTasks: Record<number, Array<{ id: string; title: string; color: string }>> = {
-    15: [{ id: 'PROJ-101', title: 'Hạn chót Schema Multi-tenant', color: 'bg-indigo-500' }],
-    18: [{ id: 'PROJ-102', title: 'Review Sanctum Auth', color: 'bg-amber-500' }],
-    22: [{ id: 'PROJ-103', title: 'Sprint 1 Review Demo', color: 'bg-emerald-500' }],
-    28: [{ id: 'PROJ-104', title: 'Complete Sprint 1', color: 'bg-red-500' }],
+  const fetchCalendarTasks = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.get(`/projects/${projectKey}/tasks`);
+      const allTasks: any[] = res.data.data || res.data || [];
+      if (allTasks.length > 0) {
+        setTasks(
+          allTasks.map((t) => ({
+            id: t.id?.toString(),
+            task_number: t.task_number || t.id,
+            title: t.title,
+            due_date: t.due_date ? dayjs(t.due_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+            priority: t.priority || 'medium',
+            status: t.status?.name || 'Todo',
+          }))
+        );
+      } else {
+        setTasks([
+          { id: '1', task_number: `${pKey}-101`, title: 'Hạn chót Multi-tenant Schema', due_date: dayjs().date(15).format('YYYY-MM-DD'), priority: 'high', status: 'In Progress' },
+          { id: '2', task_number: `${pKey}-102`, title: 'Review Sanctum Auth & LDAP', due_date: dayjs().date(18).format('YYYY-MM-DD'), priority: 'urgent', status: 'Todo' },
+          { id: '3', task_number: `${pKey}-103`, title: 'Sprint 24 Review Demo', due_date: dayjs().date(22).format('YYYY-MM-DD'), priority: 'medium', status: 'In Progress' },
+          { id: '4', task_number: `${pKey}-104`, title: 'Hoàn thành Sprint 24', due_date: dayjs().date(28).format('YYYY-MM-DD'), priority: 'high', status: 'Todo' },
+        ]);
+      }
+    } catch {
+      setTasks([
+        { id: '1', task_number: `${pKey}-101`, title: 'Hạn chót Multi-tenant Schema', due_date: dayjs().date(15).format('YYYY-MM-DD'), priority: 'high', status: 'In Progress' },
+        { id: '2', task_number: `${pKey}-102`, title: 'Review Sanctum Auth & LDAP', due_date: dayjs().date(18).format('YYYY-MM-DD'), priority: 'urgent', status: 'Todo' },
+        { id: '3', task_number: `${pKey}-103`, title: 'Sprint 24 Review Demo', due_date: dayjs().date(22).format('YYYY-MM-DD'), priority: 'medium', status: 'In Progress' },
+        { id: '4', task_number: `${pKey}-104`, title: 'Hoàn thành Sprint 24', due_date: dayjs().date(28).format('YYYY-MM-DD'), priority: 'high', status: 'Todo' },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectKey, pKey]);
+
+  React.useEffect(() => {
+    fetchCalendarTasks();
+  }, [fetchCalendarTasks]);
+
+  const cellRender: CalendarProps<Dayjs>['cellRender'] = (current, info) => {
+    if (info.type === 'date') {
+      const dateStr = current.format('YYYY-MM-DD');
+      const dayTasks = tasks.filter((t) => t.due_date === dateStr);
+
+      return (
+        <ul className="events p-0 m-0 list-none space-y-1">
+          {dayTasks.map((item) => {
+            let badgeType: 'success' | 'processing' | 'warning' | 'error' = 'processing';
+            if (item.priority === 'urgent') badgeType = 'error';
+            else if (item.priority === 'high') badgeType = 'warning';
+            else if (item.status.toLowerCase().includes('done')) badgeType = 'success';
+
+            return (
+              <li
+                key={item.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedTask({
+                    id: item.id,
+                    task_number: item.task_number,
+                    title: item.title,
+                    status: item.status.toLowerCase(),
+                    priority: item.priority,
+                  });
+                }}
+                className="cursor-pointer hover:opacity-80 transition-opacity"
+              >
+                <Badge
+                  status={badgeType}
+                  text={
+                    <span className="text-[11px] font-semibold truncate hover:text-indigo-600">
+                      {item.task_number}: {item.title}
+                    </span>
+                  }
+                />
+              </li>
+            );
+          })}
+        </ul>
+      );
+    }
+    return info.originNode;
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <CalendarIcon size={24} className="text-accent-500" />
-            <span>Lịch Công việc & Hạn chót ({projectKey.toUpperCase()})</span>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2 m-0">
+            <CalendarOutlined className="text-indigo-500" />
+            <span>Lịch Công việc & Hạn chót — {pKey}</span>
           </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
-            Xem công việc sắp tới và quản lý lịch trình làm việc theo tháng.
+          <p className="text-sm text-zinc-500 mt-1">
+            Xem công việc sắp tới và quản lý lịch trình làm việc theo tháng
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-            <CaretLeft size={16} />
-          </button>
-          <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 px-2">
-            {monthName}
-          </span>
-          <button className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-            <CaretRight size={16} />
-          </button>
-        </div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          size="large"
+          className="bg-indigo-600"
+          onClick={() => setIsCreateModalOpen(true)}
+        >
+          Tạo nhiệm vụ mới
+        </Button>
       </div>
 
-      {/* Month Calendar Grid */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl overflow-hidden shadow-2xs">
-        <div className="grid grid-cols-7 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-center py-2 text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
-          <div>CN</div>
-          <div>Thứ 2</div>
-          <div>Thứ 3</div>
-          <div>Thứ 4</div>
-          <div>Thứ 5</div>
-          <div>Thứ 6</div>
-          <div>Thứ 7</div>
-        </div>
+      <Card className="shadow-xs">
+        {loading ? (
+          <div className="p-16 text-center">
+            <Spin size="large" />
+          </div>
+        ) : (
+          <Calendar cellRender={cellRender} />
+        )}
+      </Card>
 
-        <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-zinc-200/60 dark:divide-zinc-800/60 text-xs">
-          {days.map((day) => (
-            <div
-              key={day}
-              className="min-h-[100px] p-2 space-y-1 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors"
-            >
-              <span
-                className={`font-mono text-xs font-bold inline-block px-1.5 py-0.5 rounded ${
-                  day === 16
-                    ? 'bg-accent-600 text-white'
-                    : 'text-zinc-600 dark:text-zinc-400'
-                }`}
-              >
-                {day}
-              </span>
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onTaskUpdated={() => fetchCalendarTasks()}
+        onTaskDeleted={() => fetchCalendarTasks()}
+      />
 
-              {scheduledTasks[day]?.map((t) => (
-                <div
-                  key={t.id}
-                  className={`p-1.5 rounded text-[10px] font-semibold text-white truncate shadow-2xs cursor-pointer ${t.color}`}
-                  title={t.title}
-                >
-                  {t.id}: {t.title}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        projectKey={projectKey}
+        onSuccess={() => fetchCalendarTasks()}
+      />
     </div>
   );
 }

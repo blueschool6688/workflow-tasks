@@ -2,6 +2,7 @@ import { api } from '@/lib/axios';
 
 export interface KanbanTask {
   id: string;
+  task_number?: string;
   title: string;
   status: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
@@ -28,7 +29,29 @@ export interface KanbanColumnData {
 export async function getKanbanBoardApi(projectKey: string): Promise<KanbanColumnData[]> {
   try {
     const res = await api.get(`/projects/${projectKey}/board`);
-    return res.data.data || res.data;
+    const rawCols = res.data.data || res.data;
+
+    if (Array.isArray(rawCols) && rawCols.length > 0) {
+      return rawCols.map((col: any) => ({
+        id: col.id?.toString() || 'todo',
+        title: col.title || col.name || 'Cột',
+        category: (col.category || 'todo') as 'todo' | 'in_progress' | 'done',
+        wip_limit: col.wip_limit,
+        tasks: Array.isArray(col.tasks)
+          ? col.tasks.map((t: any) => ({
+              id: t.id?.toString(),
+              task_number: t.task_number || t.id,
+              title: t.title,
+              status: t.status_id?.toString() || col.id?.toString(),
+              priority: (t.priority === 'critical' ? 'urgent' : t.priority || 'medium') as any,
+              assignee: t.assignee ? { name: t.assignee.name, avatar: t.assignee.avatar_url } : undefined,
+              labels: t.labels || [],
+              estimate: t.estimate_minutes ? `${(t.estimate_minutes / 60).toFixed(1)}h` : undefined,
+            }))
+          : [],
+      }));
+    }
+    throw new Error('Empty board data');
   } catch {
     // Return mock data for initial UI verification
     return [

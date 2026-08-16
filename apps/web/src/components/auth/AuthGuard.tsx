@@ -11,7 +11,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [isChecking, setIsChecking] = React.useState(true);
 
   React.useEffect(() => {
-    // Give Zustand hydrator a tick to load persisted auth state from localStorage
     const timeout = setTimeout(() => {
       if (!isAuthenticated || !token) {
         router.replace('/login');

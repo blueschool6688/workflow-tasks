@@ -25,11 +25,16 @@ class TaskCommentController extends Controller
     {
         $this->authorize('view', $task);
 
-        $request->validate(['content' => 'required|string|max:5000']);
+        $request->validate([
+            'content' => 'required_without:body|string|max:5000',
+            'body'    => 'required_without:content|string|max:5000',
+        ]);
+
+        $body = $request->input('content') ?? $request->input('body');
 
         $comment = $task->comments()->create([
             'user_id' => $request->user()->id,
-            'content' => $request->input('content'),
+            'body'    => $body,
         ]);
 
         return response()->json(['data' => new TaskCommentResource($comment->load('user'))], 201);
@@ -39,9 +44,13 @@ class TaskCommentController extends Controller
     {
         abort_unless($comment->user_id === $request->user()->id, 403, 'Chỉ tác giả mới có thể sửa bình luận');
 
-        $request->validate(['content' => 'required|string|max:5000']);
+        $request->validate([
+            'content' => 'required_without:body|string|max:5000',
+            'body'    => 'required_without:content|string|max:5000',
+        ]);
 
-        $comment->update(['content' => $request->input('content')]);
+        $body = $request->input('content') ?? $request->input('body');
+        $comment->update(['body' => $body]);
 
         return response()->json(['data' => new TaskCommentResource($comment->fresh()->load('user'))]);
     }

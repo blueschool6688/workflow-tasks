@@ -16,6 +16,18 @@ class TaskComment extends Model
         'body',
     ];
 
+    protected $appends = ['content'];
+
+    public function getContentAttribute(): string
+    {
+        return $this->body ?? '';
+    }
+
+    public function setContentAttribute($value): void
+    {
+        $this->attributes['body'] = $value;
+    }
+
     public function task()
     {
         return $this->belongsTo(Task::class);

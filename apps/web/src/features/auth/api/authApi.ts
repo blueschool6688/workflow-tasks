@@ -1,4 +1,5 @@
 import { api } from '@/lib/axios';
+import { WorkspaceInfo } from '@/stores/authStore';
 
 export interface LoginPayload {
   username: string;
@@ -9,13 +10,15 @@ export interface LoginResponse {
   message: string;
   token: string;
   user: {
-    id: number;
+    id: string | number;
     name: string;
+    username: string;
     email: string;
     avatar?: string | null;
     role: string;
-    current_workspace_id?: number | null;
+    current_workspace_id?: string | null;
   };
+  workspaces: WorkspaceInfo[];
 }
 
 export async function loginApi(payload: LoginPayload): Promise<LoginResponse> {

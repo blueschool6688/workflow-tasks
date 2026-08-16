@@ -38,6 +38,21 @@ class Task extends Model
         'custom_fields' => 'array',
     ];
 
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if ($field) {
+            return parent::resolveRouteBinding($value, $field);
+        }
+
+        if (\Illuminate\Support\Str::isUuid($value)) {
+            return $this->where('id', $value)->first();
+        }
+
+        return $this->where('task_number', $value)
+            ->orWhere('task_number', strtoupper($value))
+            ->first();
+    }
+
     public function project()
     {
         return $this->belongsTo(Project::class);

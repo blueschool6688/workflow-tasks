@@ -1,15 +1,17 @@
 'use client';
 
 import * as React from 'react';
+import { Layout } from 'antd';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { AuthGuard } from '../auth/AuthGuard';
 import { GlobalTimerWidget } from '@/features/time-tracking/components/GlobalTimerWidget';
 
+const { Content } = Layout;
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
-
-  // Keyboard shortcut Ctrl+B / Cmd+B to toggle sidebar
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = React.useState(false);
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
@@ -23,17 +25,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard>
-      <div className="min-h-[100dvh] flex bg-[#fafafa] dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100">
+      <Layout hasSider className="min-h-screen !flex-row bg-[#fafafa] dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100">
         <AppSidebar
           isCollapsed={isCollapsed}
           onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
+          isMobileOpen={isMobileDrawerOpen}
+          onCloseMobile={() => setIsMobileDrawerOpen(false)}
         />
-        <div className="flex-1 flex flex-col min-w-0 min-h-[100dvh]">
-          <AppHeader />
-          <main className="flex-1 p-4 sm:p-6 overflow-y-auto">{children}</main>
-        </div>
+        <Layout className="flex-1 flex flex-col min-w-0 min-h-screen bg-transparent">
+          <AppHeader onOpenMobile={() => setIsMobileDrawerOpen(true)} />
+          <Content className="flex-1 p-3 sm:p-6 overflow-y-auto bg-transparent">{children}</Content>
+        </Layout>
         <GlobalTimerWidget />
-      </div>
+      </Layout>
     </AuthGuard>
   );
 }

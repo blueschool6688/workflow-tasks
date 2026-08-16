@@ -32,7 +32,7 @@ class SprintController extends Controller
             'end_date'   => 'nullable|date|after_or_equal:start_date',
         ]);
 
-        $sprint = $project->sprints()->create(array_merge($validated, ['status' => 'planned']));
+        $sprint = $project->sprints()->create(array_merge($validated, ['status' => 'future']));
 
         return response()->json(['data' => new SprintResource($sprint)], 201);
     }

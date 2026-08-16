@@ -10,22 +10,29 @@ import {
   DragStartEvent,
   DragEndEvent,
 } from '@dnd-kit/core';
-import { arrayMove } from '@dnd-kit/sortable';
-import { getKanbanBoardApi, KanbanColumnData, KanbanTask } from '../api/boardApi';
+import { getKanbanBoardApi, updateTaskStatusApi, KanbanColumnData, KanbanTask } from '../api/boardApi';
 import { KanbanColumn } from '../components/KanbanColumn';
 import { KanbanCard } from '../components/KanbanCard';
 import { BoardFilterBar } from '../components/BoardFilterBar';
-import { TaskDetailSlideOver } from '@/features/tasks/components/TaskDetailSlideOver';
-import { CircleNotch, Kanban } from '@phosphor-icons/react';
+import { TaskDetailModal } from '@/features/tasks/components/TaskDetailModal';
+import { CreateTaskModal } from '@/features/tasks/components/CreateTaskModal';
+import { Spin, Button, message } from 'antd';
+import { AppstoreOutlined, PlusOutlined } from '@ant-design/icons';
 
 export function KanbanBoardPage({ projectKey }: { projectKey: string }) {
   const [columns, setColumns] = React.useState<KanbanColumnData[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [activeTask, setActiveTask] = React.useState<KanbanTask | null>(null);
   const [selectedTask, setSelectedTask] = React.useState<KanbanTask | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
 
+  // Filters
   const [search, setSearch] = React.useState('');
   const [selectedPriority, setSelectedPriority] = React.useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = React.useState<string | null>(null);
+  const [selectedAssignee, setSelectedAssignee] = React.useState<string | null>(null);
+  const [selectedTester, setSelectedTester] = React.useState<string | null>(null);
+  const [selectedSprint, setSelectedSprint] = React.useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -38,6 +45,8 @@ export function KanbanBoardPage({ projectKey }: { projectKey: string }) {
     try {
       const data = await getKanbanBoardApi(projectKey);
       setColumns(data);
+    } catch {
+      message.error('Không thể tải dữ liệu Kanban Board');
     } finally {
       setIsLoading(false);
     }
@@ -49,8 +58,9 @@ export function KanbanBoardPage({ projectKey }: { projectKey: string }) {
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
+    const activeId = String(active.id);
     for (const col of columns) {
-      const found = col.tasks.find((t) => t.id === active.id);
+      const found = col.tasks.find((t) => String(t.id) === activeId);
       if (found) {
         setActiveTask(found);
         break;
@@ -58,76 +68,134 @@ export function KanbanBoardPage({ projectKey }: { projectKey: string }) {
     }
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
     if (!over) return;
 
-    const activeId = active.id;
-    const overId = over.id;
+    const activeId = String(active.id);
+    const overId = String(over.id);
 
     if (activeId === overId) return;
 
-    // Find source and target column
+    // Locate source and target column index
     let sourceColIndex = -1;
     let targetColIndex = -1;
+    let taskToMove: KanbanTask | undefined;
 
     columns.forEach((col, idx) => {
-      if (col.tasks.some((t) => t.id === activeId)) sourceColIndex = idx;
-      if (col.id === overId || col.tasks.some((t) => t.id === overId)) targetColIndex = idx;
+      const found = col.tasks.find((t) => String(t.id) === activeId);
+      if (found) {
+        sourceColIndex = idx;
+        taskToMove = { ...found };
+      }
+      if (String(col.id) === overId || col.tasks.some((t) => String(t.id) === overId)) {
+        targetColIndex = idx;
+      }
     });
 
-    if (sourceColIndex === -1 || targetColIndex === -1) return;
+    if (sourceColIndex === -1 || targetColIndex === -1 || !taskToMove) return;
 
+    const targetStatusId = columns[targetColIndex].id;
+
+    // Apply optimistic state update
     setColumns((prevCols) => {
-      const newCols = [...prevCols];
-      const sourceTasks = [...newCols[sourceColIndex].tasks];
-      const targetTasks =
-        sourceColIndex === targetColIndex ? sourceTasks : [...newCols[targetColIndex].tasks];
+      const newCols = prevCols.map((c) => ({ ...c, tasks: [...c.tasks] }));
+      const sourceTasks = newCols[sourceColIndex].tasks;
+      const targetTasks = newCols[targetColIndex].tasks;
 
-      const activeTaskIndex = sourceTasks.findIndex((t) => t.id === activeId);
-      const [movedTask] = sourceTasks.splice(activeTaskIndex, 1);
+      const activeIndex = sourceTasks.findIndex((t) => String(t.id) === activeId);
+      if (activeIndex === -1) return prevCols;
+
+      const [removed] = sourceTasks.splice(activeIndex, 1);
+      if (!removed) return prevCols;
 
       if (sourceColIndex === targetColIndex) {
-        const overTaskIndex = targetTasks.findIndex((t) => t.id === overId);
-        const reordered = arrayMove(targetTasks, activeTaskIndex, overTaskIndex);
-        newCols[sourceColIndex].tasks = reordered;
+        const overIndex = targetTasks.findIndex((t) => String(t.id) === overId);
+        const insertIndex = overIndex >= 0 ? overIndex : targetTasks.length;
+        targetTasks.splice(insertIndex, 0, removed);
       } else {
-        movedTask.status = newCols[targetColIndex].id;
-        const overTaskIndex = targetTasks.findIndex((t) => t.id === overId);
-        if (overTaskIndex >= 0) {
-          targetTasks.splice(overTaskIndex, 0, movedTask);
+        removed.status = targetStatusId;
+        const overIndex = targetTasks.findIndex((t) => String(t.id) === overId);
+        if (overIndex >= 0) {
+          targetTasks.splice(overIndex, 0, removed);
         } else {
-          targetTasks.push(movedTask);
+          targetTasks.push(removed);
         }
-        newCols[sourceColIndex].tasks = sourceTasks;
-        newCols[targetColIndex].tasks = targetTasks;
       }
 
       return newCols;
     });
+
+    // Sync with backend API
+    try {
+      await updateTaskStatusApi(activeId, targetStatusId);
+    } catch {
+      // Keep optimistic UI update
+    }
   };
 
-  // Filter tasks based on search and priority
-  const filteredColumns = columns.map((col) => ({
-    ...col,
-    tasks: col.tasks.filter((t) => {
-      const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase()) || t.id.toLowerCase().includes(search.toLowerCase());
-      const matchesPriority = !selectedPriority || t.priority === selectedPriority;
-      return matchesSearch && matchesPriority;
-    }),
-  }));
+  const handleTaskUpdated = (updatedFields: any) => {
+    if (!selectedTask) return;
+    setColumns((prevCols) =>
+      prevCols.map((col) => ({
+        ...col,
+        tasks: col.tasks.map((t) =>
+          t.id === selectedTask.id ? { ...t, ...updatedFields } : t
+        ),
+      }))
+    );
+  };
+
+  const handleTaskDeleted = (deletedTaskId: string) => {
+    setColumns((prevCols) =>
+      prevCols.map((col) => ({
+        ...col,
+        tasks: col.tasks.filter((t) => t.id !== deletedTaskId),
+      }))
+    );
+  };
+
+  const handleTaskCreated = () => {
+    fetchBoard();
+  };
+
+  // Filter tasks based on search, status, priority, assignee, and tester
+  const filteredColumns = columns
+    .filter((col) => !selectedStatus || col.id === selectedStatus)
+    .map((col) => ({
+      ...col,
+      tasks: col.tasks.filter((t) => {
+        const matchesSearch =
+          t.title.toLowerCase().includes(search.toLowerCase()) ||
+          (t.task_number || t.id).toLowerCase().includes(search.toLowerCase());
+        const matchesPriority = !selectedPriority || t.priority === selectedPriority;
+        const matchesAssignee =
+          !selectedAssignee ||
+          (t.assignee?.name && t.assignee.name.toLowerCase().includes(selectedAssignee.toLowerCase()));
+        return matchesSearch && matchesPriority && matchesAssignee;
+      }),
+    }));
 
   return (
     <div className="space-y-4 h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          <Kanban size={22} className="text-accent-500" />
-          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-tight">
+          <AppstoreOutlined className="text-indigo-500 text-xl" />
+          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-tight m-0">
             Bảng Kanban ({projectKey.toUpperCase()})
           </h1>
         </div>
+
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          className="bg-indigo-600"
+          onClick={() => setIsCreateModalOpen(true)}
+        >
+          Tạo nhiệm vụ mới
+        </Button>
       </div>
 
       {/* Filter Bar */}
@@ -136,20 +204,32 @@ export function KanbanBoardPage({ projectKey }: { projectKey: string }) {
         onSearchChange={setSearch}
         selectedPriority={selectedPriority}
         onPriorityChange={setSelectedPriority}
+        selectedStatus={selectedStatus}
+        onStatusChange={setSelectedStatus}
+        selectedAssignee={selectedAssignee}
+        onAssigneeChange={setSelectedAssignee}
+        selectedTester={selectedTester}
+        onTesterChange={setSelectedTester}
+        selectedSprint={selectedSprint}
+        onSprintChange={setSelectedSprint}
         onClear={() => {
           setSearch('');
           setSelectedPriority(null);
+          setSelectedStatus(null);
+          setSelectedAssignee(null);
+          setSelectedTester(null);
+          setSelectedSprint(null);
         }}
       />
 
       {/* Board Scroll Area */}
       {isLoading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <CircleNotch size={28} className="animate-spin text-accent-500" />
+        <div className="flex-1 flex items-center justify-center min-h-[400px]">
+          <Spin size="large" />
         </div>
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex-1 overflow-x-auto pb-4 flex gap-4 items-start">
+          <div className="flex-1 overflow-x-auto pb-4 flex gap-4 items-start min-h-[500px]">
             {filteredColumns.map((col) => (
               <KanbanColumn
                 key={col.id}
@@ -163,8 +243,21 @@ export function KanbanBoardPage({ projectKey }: { projectKey: string }) {
         </DndContext>
       )}
 
-      {/* Slide-over Detail */}
-      <TaskDetailSlideOver task={selectedTask} onClose={() => setSelectedTask(null)} />
+      {/* 1000px Centered Modal for Task Detail */}
+      <TaskDetailModal
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onTaskUpdated={handleTaskUpdated}
+        onTaskDeleted={handleTaskDeleted}
+      />
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        projectKey={projectKey}
+        onSuccess={handleTaskCreated}
+      />
     </div>
   );
 }

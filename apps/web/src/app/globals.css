@@ -13,14 +13,6 @@
     --foreground: 0 0% 98%;
   }
 
-  * {
-    border-color: rgba(228, 228, 231, 0.8);
-  }
-
-  .dark * {
-    border-color: rgba(39, 39, 42, 0.8);
-  }
-
   body {
     background-color: #fafafa;
     color: #09090b;

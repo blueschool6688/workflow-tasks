@@ -31,11 +31,14 @@ export function LoginForm() {
         {
           id: res.user.id,
           name: res.user.name,
+          username: res.user.username,
           email: res.user.email,
           avatar_url: res.user.avatar || undefined,
           role: res.user.role,
+          current_workspace_id: res.user.current_workspace_id,
         },
-        res.token
+        res.token,
+        res.workspaces
       );
       router.push('/dashboard');
     } catch (err: any) {

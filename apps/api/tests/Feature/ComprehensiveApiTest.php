@@ -1,0 +1,118 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Project;
+use App\Models\Task;
+use App\Models\User;
+use App\Models\Workspace;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class ComprehensiveApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected User $user;
+    protected Project $project;
+    protected Workspace $workspace;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed();
+
+        $this->user = User::where('email', 'admin@tasks.local')->first() ?? User::factory()->create();
+        $this->project = Project::where('key', 'CORE-ENG')->first() ?? Project::first();
+        $this->workspace = $this->project->workspace ?? Workspace::first();
+
+        $this->user->current_workspace_id = $this->workspace->id;
+        $this->user->save();
+
+        Sanctum::actingAs($this->user, ['*']);
+    }
+
+    public function test_auth_me_endpoint(): void
+    {
+        $response = $this->getJson('/api/v1/auth/me');
+        $response->assertStatus(200);
+        $response->assertJsonStructure(['user' => ['id', 'email', 'name']]);
+    }
+
+    public function test_dashboard_endpoints(): void
+    {
+        $this->getJson('/api/v1/dashboard/stats')->assertStatus(200);
+        $this->getJson('/api/v1/dashboard/my-work')->assertStatus(200);
+        $this->getJson('/api/v1/dashboard/summary')->assertStatus(200);
+        $this->getJson('/api/v1/dashboard/calendar')->assertStatus(200);
+    }
+
+    public function test_projects_list_and_details(): void
+    {
+        $response = $this->getJson('/api/v1/projects');
+        $response->assertStatus(200);
+
+        // Test with key "CORE-ENG"
+        $this->getJson("/api/v1/projects/CORE-ENG")->assertStatus(200);
+
+        // Test with lowercase key "core-eng"
+        $this->getJson("/api/v1/projects/core-eng")->assertStatus(200);
+
+        // Test with UUID
+        $this->getJson("/api/v1/projects/{$this->project->id}")->assertStatus(200);
+    }
+
+    public function test_project_tasks_and_sprints_by_key(): void
+    {
+        $tasksRes = $this->getJson('/api/v1/projects/core-eng/tasks');
+        $tasksRes->assertStatus(200);
+
+        $sprintsRes = $this->getJson('/api/v1/projects/core-eng/sprints');
+        $sprintsRes->assertStatus(200);
+
+        $boardRes = $this->getJson('/api/v1/projects/core-eng/board');
+        $boardRes->assertStatus(200);
+
+        $summaryRes = $this->getJson('/api/v1/projects/core-eng/summary');
+        $summaryRes->assertStatus(200);
+    }
+
+    public function test_task_crud_and_route_binding_by_task_number(): void
+    {
+        $task = Task::where('project_id', $this->project->id)->first();
+        if ($task) {
+            // By task_number
+            $this->getJson("/api/v1/tasks/{$task->task_number}")->assertStatus(200);
+
+            // By UUID
+            $this->getJson("/api/v1/tasks/{$task->id}")->assertStatus(200);
+
+            // Comments
+            $this->getJson("/api/v1/tasks/{$task->task_number}/comments")->assertStatus(200);
+
+            // Activity
+            $this->getJson("/api/v1/tasks/{$task->task_number}/activity")->assertStatus(200);
+
+            // Post Comment
+            $commentRes = $this->postJson("/api/v1/tasks/{$task->task_number}/comments", [
+                'content' => 'Automated test comment verification',
+            ]);
+            $commentRes->assertStatus(201);
+        }
+    }
+
+    public function test_create_task_under_project(): void
+    {
+        $res = $this->postJson('/api/v1/projects/core-eng/tasks', [
+            'title' => 'Test Task via API Verification',
+            'type' => 'task',
+            'priority' => 'high',
+            'description' => 'Automated test task creation verification.',
+        ]);
+
+        $res->assertStatus(201);
+        $res->assertJsonStructure(['data' => ['id', 'task_number', 'title']]);
+    }
+}

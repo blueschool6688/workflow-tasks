@@ -38,16 +38,20 @@ class ProjectController extends Controller
         $this->authorize('create', Project::class);
 
         $validated = $request->validate([
-            'workspace_id'    => 'required|uuid|exists:workspaces,id',
+            'workspace_id'    => 'sometimes|required|uuid|exists:workspaces,id',
             'name'            => 'required|string|max:255',
             'key'             => 'required|string|max:10|unique:projects,key',
             'description'     => 'nullable|string',
             'type'            => 'required|in:scrum,kanban,waterfall',
             'workflow_id'     => 'nullable|uuid|exists:workflows,id',
-            'lead_id'         => 'nullable|uuid|exists:users,id',
+            'lead_id'         => 'nullable|exists:users,id',
             'start_date'      => 'nullable|date',
             'target_end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
+
+        if (empty($validated['workspace_id'])) {
+            $validated['workspace_id'] = $request->user()->current_workspace_id ?? \App\Models\Workspace::first()?->id;
+        }
 
         $project = Project::create($validated);
         $project->members()->attach($request->user()->id, ['role_in_project' => 'lead']);
@@ -64,7 +68,7 @@ class ProjectController extends Controller
             'description'     => 'nullable|string',
             'status'          => 'sometimes|in:active,completed,archived',
             'workflow_id'     => 'nullable|uuid|exists:workflows,id',
-            'lead_id'         => 'nullable|uuid|exists:users,id',
+            'lead_id'         => 'nullable|exists:users,id',
             'start_date'      => 'nullable|date',
             'target_end_date' => 'nullable|date',
         ]);
@@ -88,7 +92,7 @@ class ProjectController extends Controller
         $this->authorize('manageMembers', $project);
 
         $request->validate([
-            'user_id'         => 'required|uuid|exists:users,id',
+            'user_id'         => 'required|exists:users,id',
             'role_in_project' => 'required|in:lead,developer,viewer',
         ]);
 

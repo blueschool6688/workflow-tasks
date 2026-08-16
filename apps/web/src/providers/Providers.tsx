@@ -4,6 +4,7 @@ import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import { Toaster } from 'sonner';
+import { AntdProvider } from './AntdProvider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = React.useState(
@@ -27,15 +28,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <QueryClientProvider client={queryClient}>
-        {children}
-        <Toaster
-          position="bottom-right"
-          toastOptions={{
-            duration: 4000,
-            className:
-              'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-lg text-sm',
-          }}
-        />
+        <AntdProvider>
+          {children}
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              duration: 4000,
+              className:
+                'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-lg text-sm',
+            }}
+          />
+        </AntdProvider>
       </QueryClientProvider>
     </NextThemesProvider>
   );

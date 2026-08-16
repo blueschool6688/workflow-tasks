@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\Api\V1\TaskWorkLogResource;
+use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskWorkLog;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +12,19 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class TaskWorkLogController extends Controller
 {
+    public function projectLogs(Project $project): AnonymousResourceCollection
+    {
+        $this->authorize('view', $project);
+
+        $taskIds = $project->tasks()->pluck('id');
+        $logs = TaskWorkLog::whereIn('task_id', $taskIds)
+            ->with(['task', 'user'])
+            ->latest('logged_at')
+            ->get();
+
+        return TaskWorkLogResource::collection($logs);
+    }
+
     public function index(Task $task): AnonymousResourceCollection
     {
         $this->authorize('view', $task);
