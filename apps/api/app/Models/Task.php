@@ -64,8 +64,18 @@ class Task extends Model
             return $this->where('id', $value)->first();
         }
 
-        return $this->where('task_number', $value)
-            ->orWhere('task_number', strtoupper($value))
+        $upper = strtoupper($value);
+
+        $task = $this->where('task_number', $value)
+            ->orWhere('task_number', $upper)
+            ->first();
+
+        if ($task) {
+            return $task;
+        }
+
+        return $this->where('task_number', 'LIKE', "%-{$upper}")
+            ->orWhere('task_number', 'LIKE', "%{$upper}")
             ->first();
     }
 

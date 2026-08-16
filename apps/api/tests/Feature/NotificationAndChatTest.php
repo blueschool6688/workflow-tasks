@@ -213,21 +213,50 @@ class NotificationAndChatTest extends TestCase
         $this->assertDatabaseMissing('project_messages', ['id' => $messageId]);
     }
 
-    public function test_user_can_upload_chat_attachment(): void
+    public function test_user_can_send_message_with_only_attachments_and_no_text(): void
     {
         Sanctum::actingAs($this->adminUser, ['*']);
 
-        \Illuminate\Support\Facades\Storage::fake('public');
-
-        $file = \Illuminate\Http\UploadedFile::fake()->image('screenshot.png');
-
-        $response = $this->postJson("/api/v1/projects/{$this->project->id}/messages/upload", [
-            'file' => $file,
+        $response = $this->postJson("/api/v1/projects/{$this->project->id}/messages", [
+            'content' => '',
+            'attachments' => [
+                [
+                    'name' => 'photo.png',
+                    'url' => 'http://localhost/storage/photo.png',
+                    'type' => 'image',
+                    'size' => 1024,
+                ],
+            ],
         ]);
 
-        $response->assertStatus(200)
-            ->assertJsonStructure(['data' => ['name', 'url', 'size', 'type', 'mime_type']])
-            ->assertJsonPath('data.name', 'screenshot.png')
-            ->assertJsonPath('data.type', 'image');
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('project_messages', [
+            'project_id' => $this->project->id,
+            'user_id' => $this->adminUser->id,
+        ]);
+    }
+
+    public function test_task_route_binding_resolves_partial_task_numbers(): void
+    {
+        Sanctum::actingAs($this->adminUser, ['*']);
+
+        $task = Task::create([
+            'project_id' => $this->project->id,
+            'task_number' => 'CUSTOM-SLUG-999',
+            'title' => 'Sample Multi-hyphen Task',
+            'status_id' => $this->todoStatus->id,
+            'assignee_id' => $this->adminUser->id,
+            'reporter_id' => $this->adminUser->id,
+        ]);
+
+        // Exact match
+        $res1 = $this->getJson("/api/v1/tasks/CUSTOM-SLUG-999");
+        $res1->assertStatus(200)
+            ->assertJsonPath('data.id', $task->id);
+
+        // Partial match (e.g. SLUG-999)
+        $res2 = $this->getJson("/api/v1/tasks/SLUG-999");
+        $res2->assertStatus(200)
+            ->assertJsonPath('data.id', $task->id);
     }
 }

@@ -103,7 +103,7 @@ class ProjectChatController extends Controller
         $this->authorize('view', $project);
 
         $validated = $request->validate([
-            'content' => 'required|string|max:5000',
+            'content' => 'required_without:attachments|nullable|string|max:5000',
             'attachments' => 'nullable|array',
             'reply_to_id' => 'nullable|uuid|exists:project_messages,id',
         ]);
@@ -111,7 +111,7 @@ class ProjectChatController extends Controller
         $message = ProjectMessage::create([
             'project_id' => $project->id,
             'user_id' => $request->user()->id,
-            'content' => $validated['content'],
+            'content' => $validated['content'] ?? '',
             'attachments' => $validated['attachments'] ?? null,
             'reply_to_id' => $validated['reply_to_id'] ?? null,
             'is_system' => false,

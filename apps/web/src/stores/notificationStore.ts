@@ -158,18 +158,25 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
 
     const echo = getEcho();
-    if (!echo) {
-      return;
-    }
-
     const channelName = `user.${userId}`;
     set({ subscribedUserId: userId });
 
-    echo.private(channelName).listen('.TaskStatusChanged', (e: unknown) => {
-      get().addRealtimeNotification(e as AppNotification);
-    }).listen('TaskStatusChanged', (e: unknown) => {
-      get().addRealtimeNotification(e as AppNotification);
-    });
+    if (echo) {
+      echo.private(channelName).listen('.TaskStatusChanged', (e: unknown) => {
+        get().addRealtimeNotification(e as AppNotification);
+      }).listen('TaskStatusChanged', (e: unknown) => {
+        get().addRealtimeNotification(e as AppNotification);
+      });
+    }
+
+    // Light background unread check every 6s
+    const pollInterval = setInterval(() => {
+      if (useAuthStore.getState().isAuthenticated) {
+        get().loadUnreadCount();
+      }
+    }, 6000);
+
+    return () => clearInterval(pollInterval);
   },
 
   unsubscribeFromUserChannel: () => {

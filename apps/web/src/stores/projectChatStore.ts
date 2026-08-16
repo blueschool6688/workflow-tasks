@@ -13,7 +13,7 @@ import {
   sendTypingSignalApi,
   fetchAccessibleProjectsApi,
 } from '@/features/chat/api/projectChatApi';
-import { getEcho } from '@/lib/echoService';
+import { getEcho, subscribeSocketStatus, SocketConnectionStatus } from '@/lib/echoService';
 import { useAuthStore } from './authStore';
 
 interface TypingUser {
@@ -38,10 +38,12 @@ interface ProjectChatState {
   isSending: boolean;
   isUploadingAttachment: boolean;
   subscribedProjectId: string | null;
+  socketStatus: SocketConnectionStatus;
 
-  // Typing throttling state
+  // Typing throttling & polling state
   lastTypingSentAt: number;
   typingStopTimer: NodeJS.Timeout | null;
+  pollTimer: NodeJS.Timeout | null;
 
   // Actions
   openChat: (projectId: string, projectKey?: string) => void;
@@ -65,6 +67,8 @@ interface ProjectChatState {
   stopTypingImmediately: () => void;
   subscribeToProjectChannel: (projectId: string) => void;
   unsubscribeFromProjectChannel: () => void;
+  startFallbackPolling: (projectId: string) => void;
+  stopFallbackPolling: () => void;
 }
 
 export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
@@ -84,8 +88,10 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
   isSending: false,
   isUploadingAttachment: false,
   subscribedProjectId: null,
+  socketStatus: 'disconnected',
   lastTypingSentAt: 0,
   typingStopTimer: null,
+  pollTimer: null,
 
   openChat: (projectId: string, projectKey?: string) => {
     set({
@@ -96,10 +102,12 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     get().loadAccessibleProjects();
     get().loadMessages(projectId);
     get().subscribeToProjectChannel(projectId);
+    get().startFallbackPolling(projectId);
   },
 
   closeChat: () => {
     get().stopTypingImmediately();
+    get().stopFallbackPolling();
     set({ isOpen: false, replyingTo: null, selectedAttachments: [] });
   },
 
@@ -114,7 +122,6 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     } else if (accessibleProjects.length > 0) {
       get().openChat(accessibleProjects[0].id, accessibleProjects[0].key);
     } else {
-      // Load accessible projects first
       get().loadAccessibleProjects().then(() => {
         const projs = get().accessibleProjects;
         if (projs.length > 0) {
@@ -130,6 +137,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
 
   switchProject: (projectId: string, projectKey: string) => {
     get().stopTypingImmediately();
+    get().stopFallbackPolling();
     set({
       currentProjectId: projectId,
       currentProjectKey: projectKey,
@@ -143,6 +151,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     });
     get().loadMessages(projectId);
     get().subscribeToProjectChannel(projectId);
+    get().startFallbackPolling(projectId);
   },
 
   loadAccessibleProjects: async () => {
@@ -172,6 +181,44 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
       // Fallback
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  startFallbackPolling: (projectId: string) => {
+    get().stopFallbackPolling();
+    const timer = setInterval(async () => {
+      const { isOpen, currentProjectId, messages } = get();
+      if (!isOpen || currentProjectId !== projectId) return;
+
+      try {
+        const res = await fetchProjectMessagesApi(projectId);
+        const freshMessages = res.data || [];
+
+        // Check if there are any new messages or status changes
+        if (
+          freshMessages.length !== messages.length ||
+          freshMessages.some((fm, idx) => messages[idx]?.id !== fm.id)
+        ) {
+          set({
+            messages: freshMessages,
+            members: res.members || get().members,
+            availableTasks: res.tasks || get().availableTasks,
+            pinnedMessage: res.pinned_message ?? null,
+          });
+        }
+      } catch {
+        // Silent
+      }
+    }, 3500);
+
+    set({ pollTimer: timer });
+  },
+
+  stopFallbackPolling: () => {
+    const { pollTimer } = get();
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      set({ pollTimer: null });
     }
   },
 
@@ -357,13 +404,11 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     if (!currentProjectId) return;
 
     const now = Date.now();
-    // Throttle: Send at most once every 2.5 seconds
     if (now - lastTypingSentAt > 2500) {
       sendTypingSignalApi(currentProjectId, true);
       set({ lastTypingSentAt: now });
     }
 
-    // Debounce stop typing: After 2.5s of inactivity, send is_typing: false
     if (typingStopTimer) {
       clearTimeout(typingStopTimer);
     }
@@ -392,6 +437,10 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     }
 
     get().unsubscribeFromProjectChannel();
+
+    subscribeSocketStatus((status) => {
+      set({ socketStatus: status });
+    });
 
     const echo = getEcho();
     if (!echo) return;
@@ -423,6 +472,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
 
   unsubscribeFromProjectChannel: () => {
     const { subscribedProjectId } = get();
+    get().stopFallbackPolling();
     if (!subscribedProjectId) return;
 
     const echo = getEcho();

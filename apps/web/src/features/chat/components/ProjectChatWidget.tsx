@@ -208,8 +208,8 @@ export function ProjectChatWidget() {
 
   // Helper to render task pill or member mention inside message content
   const renderFormattedMessage = (content: string) => {
-    // Regex for task pattern: [PROJ-101: title] or PROJ-101 or #PROJ-101
-    const taskPattern = /\[([A-Z0-9]+-\d+)(?::\s*([^\]]+))?\]|#?([A-Z0-9]+-\d+)/g;
+    // Regex for task pattern: [CORE-ENG-101: title] or CORE-ENG-101 or #CORE-ENG-101
+    const taskPattern = /\[([A-Za-z0-9_-]+)(?::\s*([^\]]+))?\]|#?([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*-\d+)/g;
     const memberPattern = /@([A-Za-zÀ-ỹ0-9_.\s]+?)(?=\s|[.,!?]|$)/g;
 
     const parts: React.ReactNode[] = [];
@@ -404,9 +404,17 @@ export function ProjectChatWidget() {
                 }))}
               />
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 dark:text-zinc-400 pl-2">
-              <Circle size={7} weight="fill" className="text-emerald-500 animate-pulse" />
-              <span>{members.length > 0 ? `${members.length} thành viên` : 'Trực tuyến'}</span>
+            <div className="flex items-center gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 pl-2">
+              <span className="flex items-center gap-1">
+                <Circle
+                  size={7}
+                  weight="fill"
+                  className={socketStatus === 'connected' ? 'text-emerald-500 animate-pulse' : 'text-emerald-400'}
+                />
+                <span>{socketStatus === 'connected' ? 'Realtime' : 'Trực tuyến'}</span>
+              </span>
+              <span>•</span>
+              <span>{members.length > 0 ? `${members.length} thành viên` : 'Nhóm'}</span>
             </div>
           </div>
         </div>

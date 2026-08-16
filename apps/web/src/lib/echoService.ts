@@ -7,7 +7,11 @@ if (typeof window !== 'undefined') {
   (window as unknown as { Pusher: typeof Pusher }).Pusher = Pusher;
 }
 
+export type SocketConnectionStatus = 'connected' | 'connecting' | 'unavailable' | 'failed' | 'disconnected';
+
 let echoInstance: Echo<'reverb'> | null = null;
+let currentConnectionStatus: SocketConnectionStatus = 'disconnected';
+const statusListeners = new Set<(status: SocketConnectionStatus) => void>();
 
 export function getEcho(): Echo<'reverb'> | null {
   if (typeof window === 'undefined') {
@@ -19,6 +23,7 @@ export function getEcho(): Echo<'reverb'> | null {
     if (echoInstance) {
       echoInstance.disconnect();
       echoInstance = null;
+      updateStatus('disconnected');
     }
     return null;
   }
@@ -52,16 +57,52 @@ export function getEcho(): Echo<'reverb'> | null {
         },
       },
     });
+
+    // Monitor connection states
+    const pusherClient = echoInstance.connector?.pusher;
+    if (pusherClient?.connection) {
+      pusherClient.connection.bind('state_change', (states: { current: SocketConnectionStatus }) => {
+        updateStatus(states.current);
+      });
+      pusherClient.connection.bind('error', () => {
+        updateStatus('unavailable');
+      });
+    }
   } catch (error) {
     console.warn('[EchoService] Failed to initialize Echo client:', error);
+    updateStatus('unavailable');
   }
 
   return echoInstance;
+}
+
+function updateStatus(status: SocketConnectionStatus) {
+  currentConnectionStatus = status;
+  statusListeners.forEach((listener) => {
+    try {
+      listener(status);
+    } catch {
+      // Ignore
+    }
+  });
+}
+
+export function subscribeSocketStatus(listener: (status: SocketConnectionStatus) => void): () => void {
+  statusListeners.add(listener);
+  listener(currentConnectionStatus);
+  return () => {
+    statusListeners.delete(listener);
+  };
+}
+
+export function getSocketStatus(): SocketConnectionStatus {
+  return currentConnectionStatus;
 }
 
 export function disconnectEcho() {
   if (echoInstance) {
     echoInstance.disconnect();
     echoInstance = null;
+    updateStatus('disconnected');
   }
 }
