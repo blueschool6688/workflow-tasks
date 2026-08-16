@@ -49,8 +49,15 @@ export interface ProjectChatMessage {
       name: string;
     };
   } | null;
+  sequence_id?: number;
   user: ChatUser;
   created_at: string;
+}
+
+export interface ProjectChatPagination {
+  limit: number;
+  has_more: boolean;
+  next_cursor: number | string | null;
 }
 
 export interface ProjectChatResponse {
@@ -58,6 +65,12 @@ export interface ProjectChatResponse {
   members: ChatUser[];
   tasks?: ProjectTaskRef[];
   pinned_message?: ProjectChatMessage | null;
+  project?: {
+    id: string;
+    key: string;
+    name: string;
+  };
+  pagination?: ProjectChatPagination;
 }
 
 export interface ProjectSummaryOption {
@@ -70,11 +83,12 @@ export interface ProjectSummaryOption {
 
 export async function fetchProjectMessagesApi(
   projectId: string,
-  before?: string
+  cursor?: number | string | null,
+  limit: number = 50
 ): Promise<ProjectChatResponse> {
-  const params: Record<string, string | number> = { limit: 50 };
-  if (before) {
-    params.before = before;
+  const params: Record<string, string | number> = { limit };
+  if (cursor !== undefined && cursor !== null) {
+    params.cursor = cursor;
   }
   const res = await api.get(`/projects/${projectId}/messages`, { params });
   return res.data;

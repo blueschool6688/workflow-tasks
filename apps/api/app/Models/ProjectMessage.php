@@ -23,11 +23,25 @@ class ProjectMessage extends Model
     ];
 
     protected $casts = [
+        'sequence_id' => 'integer',
         'attachments' => 'array',
         'is_system' => 'boolean',
         'is_pinned' => 'boolean',
         'pinned_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (ProjectMessage $message) {
+            if (empty($message->sequence_id)) {
+                $driver = $message->getConnection()->getDriverName();
+                if ($driver === 'sqlite') {
+                    $maxSeq = (int) (static::query()->max('sequence_id') ?? 0);
+                    $message->sequence_id = $maxSeq + 1;
+                }
+            }
+        });
+    }
 
     public function project()
     {

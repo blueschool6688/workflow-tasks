@@ -65,6 +65,9 @@ export function ProjectChatWidget() {
     pinnedMessage,
     accessibleProjects,
     typingUsers,
+    hasMore,
+    isLoadingMore,
+    loadOlderMessages,
     replyingTo,
     selectedAttachments,
     isSending,
@@ -99,14 +102,23 @@ export function ProjectChatWidget() {
   // Determine current active project
   const activeProjectKey = projectKeyParam || currentProjectKey;
 
-  // Auto-scroll to bottom when messages update
+  // Deduplicate messages strictly by ID
+  const uniqueMessages = React.useMemo(() => {
+    const seen = new Set<string>();
+    return messages.filter((m) => {
+      const id = String(m.id || '');
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [messages]);
+
   React.useEffect(() => {
     if (isOpen && !highlightedMessageId) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isOpen, typingUsers, highlightedMessageId]);
+  }, [uniqueMessages, isOpen, typingUsers, highlightedMessageId]);
 
-  // Handle typing with throttling
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setInputContent(value);
@@ -160,7 +172,6 @@ export function ProjectChatWidget() {
   const handleInsertTask = (task: ProjectTaskRef) => {
     const taskTag = `[${task.task_number}: ${task.title}] `;
     if (mentionMenuOpen) {
-      // Replace partial @ or # query
       const lastIndex = Math.max(inputContent.lastIndexOf('@'), inputContent.lastIndexOf('#'));
       if (lastIndex !== -1) {
         setInputContent(inputContent.slice(0, lastIndex) + taskTag);
@@ -207,9 +218,7 @@ export function ProjectChatWidget() {
     }
   };
 
-  // Helper to render task pill or member mention inside message content
   const renderFormattedMessage = (content: string) => {
-    // Regex for task pattern: [CORE-ENG-101: title] or CORE-ENG-101 or #CORE-ENG-101
     const taskPattern = /\[([A-Za-z0-9_-]+)(?::\s*([^\]]+))?\]|#?([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*-\d+)/g;
     const memberPattern = /@([A-Za-zÀ-ỹ0-9_.\s]+?)(?=\s|[.,!?]|$)/g;
 
@@ -229,7 +238,6 @@ export function ProjectChatWidget() {
       const matchedText = match[0];
       const matchIndex = match.index;
 
-      // Find task object if available
       const taskObj = availableTasks.find((t) => t.task_number.toUpperCase() === taskNumber);
 
       matches.push({
@@ -255,14 +263,11 @@ export function ProjectChatWidget() {
         ),
       });
     }
-
-    // Match Members
     while ((match = memberPattern.exec(text)) !== null) {
       const memberName = match[1].trim();
       const matchedText = match[0];
       const matchIndex = match.index;
 
-      // Check if matches a member or general @
       const isKnownMember = members.some(
         (m) => m.name.toLowerCase().includes(memberName.toLowerCase())
       );
@@ -305,7 +310,6 @@ export function ProjectChatWidget() {
     return parts.length > 0 ? parts : content;
   };
 
-  // Filter tasks & members for autocomplete
   const filteredTasks = availableTasks.filter(
     (t) =>
       t.task_number.toLowerCase().includes(mentionFilter) ||
@@ -316,13 +320,10 @@ export function ProjectChatWidget() {
     m.name.toLowerCase().includes(mentionFilter)
   );
 
-  // If user is not in a project route and no project is loaded in chat, don't show widget
   const isInProjectRoute = pathname.includes('/projects/');
   if (!isInProjectRoute && !isOpen && accessibleProjects.length === 0) {
     return null;
   }
-
-  // Floating trigger button
   if (!isOpen) {
     return (
       <div className="fixed bottom-6 right-6 z-40 animate-in fade-in zoom-in-75 duration-200">
@@ -341,12 +342,11 @@ export function ProjectChatWidget() {
             className="group relative flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-medium text-xs rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-200"
           >
             <ChatCircleDots size={20} weight="fill" className="animate-pulse" />
-            <span className="font-semibold tracking-wide">Team Chat</span>
-            {activeProjectKey && (
+            {/* {activeProjectKey && (
               <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px] font-mono uppercase">
                 {activeProjectKey}
               </span>
-            )}
+            )} */}
           </button>
         </Tooltip>
       </div>
@@ -355,13 +355,11 @@ export function ProjectChatWidget() {
 
   return (
     <div
-      className={`fixed z-50 transition-all duration-300 ease-out flex flex-col bg-white/95 dark:bg-[#111115]/95 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xl rounded-2xl overflow-hidden ${
-        isExpanded
-          ? 'bottom-4 right-4 w-[calc(100vw-32px)] sm:w-[680px] h-[calc(100vh-32px)] sm:h-[720px]'
-          : 'bottom-6 right-6 w-[calc(100vw-48px)] sm:w-[420px] h-[580px]'
-      }`}
+      className={`fixed z-50 transition-all duration-300 ease-out flex flex-col bg-white/95 dark:bg-[#111115]/95 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xl rounded-2xl overflow-hidden ${isExpanded
+        ? 'bottom-4 right-4 w-[calc(100vw-32px)] sm:w-[680px] h-[calc(100vh-32px)] sm:h-[720px]'
+        : 'bottom-6 right-6 w-[calc(100vw-48px)] sm:w-[420px] h-[580px]'
+        }`}
     >
-      {/* Hidden file upload input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -370,7 +368,6 @@ export function ProjectChatWidget() {
         className="hidden"
       />
 
-      {/* Chat Header with Project Switcher */}
       <div className="p-3 px-4 bg-gradient-to-r from-indigo-600/10 via-violet-600/5 to-transparent border-b border-zinc-200/70 dark:border-zinc-800/70 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
@@ -412,9 +409,9 @@ export function ProjectChatWidget() {
                   weight="fill"
                   className={socketStatus === 'connected' ? 'text-emerald-500 animate-pulse' : 'text-emerald-400'}
                 />
-                <span>{socketStatus === 'connected' ? 'Realtime' : 'Trực tuyến'}</span>
+                {/* <span>{socketStatus === 'connected' ? 'Realtime' : 'Trực tuyến'}</span> */}
               </span>
-              <span>•</span>
+              {/* <span>•</span> */}
               <span>{members.length > 0 ? `${members.length} thành viên` : 'Nhóm'}</span>
             </div>
           </div>
@@ -440,7 +437,6 @@ export function ProjectChatWidget() {
         </div>
       </div>
 
-      {/* Pinned Message Banner */}
       {pinnedMessage && (
         <div
           onClick={() => scrollToMessage(pinnedMessage.id)}
@@ -471,7 +467,7 @@ export function ProjectChatWidget() {
       )}
 
       {/* Online Member Avatar Bar */}
-      {members.length > 0 && (
+      {/* {members.length > 0 && (
         <div className="px-3.5 py-1.5 border-b border-zinc-100 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30 flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
           <span className="text-[10px] uppercase font-bold text-zinc-400 dark:text-zinc-500 shrink-0 mr-1">
             Thành viên:
@@ -490,11 +486,33 @@ export function ProjectChatWidget() {
             ))}
           </Avatar.Group>
         </div>
-      )}
+      )} */}
 
       {/* Messages Stream */}
       <div className="flex-1 p-3.5 overflow-y-auto space-y-3 scrollbar-thin">
-        {messages.length === 0 ? (
+        {hasMore && (
+          <div className="flex justify-center py-1">
+            <button
+              type="button"
+              onClick={loadOlderMessages}
+              disabled={isLoadingMore}
+              className="px-3 py-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-full border border-indigo-200/60 dark:border-indigo-800/60 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+            >
+              {isLoadingMore ? (
+                <>
+                  <Spin size="small" />
+                  <span>Đang nạp tin nhắn cũ hơn...</span>
+                </>
+              ) : (
+                <>
+                  <span>↑ Tải tin nhắn cũ hơn</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {uniqueMessages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400">
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 flex items-center justify-center mb-2">
               <ChatCircleDots size={24} weight="duotone" />
@@ -507,10 +525,10 @@ export function ProjectChatWidget() {
             </p>
           </div>
         ) : (
-          messages.map((msg, index) => {
+          uniqueMessages.map((msg, index) => {
             const isMe = String(msg.user_id) === String(user?.id);
             const showAvatar =
-              index === 0 || String(messages[index - 1].user_id) !== String(msg.user_id);
+              index === 0 || String(uniqueMessages[index - 1].user_id) !== String(msg.user_id);
             const timeAgo = dayjs(msg.created_at).format('HH:mm');
             const isHighlighted = highlightedMessageId === msg.id;
 
@@ -518,9 +536,8 @@ export function ProjectChatWidget() {
               <div
                 key={msg.id}
                 id={`msg-${msg.id}`}
-                className={`group flex items-end gap-2 transition-all duration-300 rounded-xl p-1 ${
-                  isHighlighted ? 'bg-indigo-500/15 ring-2 ring-indigo-500' : ''
-                } ${isMe ? 'justify-end' : 'justify-start'}`}
+                className={`group flex items-end gap-2 transition-all duration-300 rounded-xl p-1 ${isHighlighted ? 'bg-indigo-500/20 ring-2 ring-indigo-500 shadow-md scale-[1.01]' : ''
+                  } ${isMe ? 'justify-end' : 'justify-start'}`}
               >
                 {!isMe && (
                   <div className="w-6 shrink-0">
@@ -554,10 +571,13 @@ export function ProjectChatWidget() {
                   {/* Quoted Reply */}
                   {msg.reply_to && (
                     <div
-                      className={`text-[10px] px-2.5 py-1 mb-1 rounded-lg border-l-2 bg-zinc-100/80 dark:bg-zinc-800/80 border-indigo-500 truncate max-w-full text-zinc-500 dark:text-zinc-400`}
+                      onClick={() => msg.reply_to?.id && scrollToMessage(msg.reply_to.id)}
+                      className="text-[10px] px-2.5 py-1 mb-1 rounded-lg border-l-2 bg-zinc-100/90 dark:bg-zinc-800/90 border-indigo-500 truncate max-w-full text-zinc-600 dark:text-zinc-300 cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center gap-1"
+                      title="Nhấn để cuộn tới tin nhắn gốc"
                     >
+                      <ArrowBendUpLeft size={11} className="text-indigo-500 shrink-0" />
                       <span className="font-semibold">{msg.reply_to.user?.name}: </span>
-                      {msg.reply_to.content}
+                      <span className="truncate">{msg.reply_to.content}</span>
                     </div>
                   )}
 
@@ -569,11 +589,10 @@ export function ProjectChatWidget() {
                         <Tooltip title={msg.is_pinned ? 'Bỏ ghim' : 'Ghim tin nhắn'}>
                           <button
                             onClick={() => pinMessage(msg.id)}
-                            className={`p-1 rounded transition-colors ${
-                              msg.is_pinned
-                                ? 'text-amber-500'
-                                : 'text-zinc-400 hover:text-amber-500'
-                            }`}
+                            className={`p-1 rounded transition-colors ${msg.is_pinned
+                              ? 'text-amber-500'
+                              : 'text-zinc-400 hover:text-amber-500'
+                              }`}
                           >
                             <PushPin size={12} weight={msg.is_pinned ? 'fill' : 'regular'} />
                           </button>
@@ -591,11 +610,10 @@ export function ProjectChatWidget() {
 
                     {/* Bubble */}
                     <div
-                      className={`p-2.5 px-3 rounded-2xl text-xs leading-relaxed transition-all shadow-2xs break-words space-y-2 ${
-                        isMe
-                          ? 'bg-indigo-600 text-white rounded-br-xs'
-                          : 'bg-zinc-100 dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-100 rounded-bl-xs border border-zinc-200/50 dark:border-zinc-700/50'
-                      }`}
+                      className={`p-2.5 px-3 rounded-2xl text-xs leading-relaxed transition-all shadow-2xs break-words space-y-2 ${isMe
+                        ? 'bg-indigo-600 text-white rounded-br-xs'
+                        : 'bg-zinc-100 dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-100 rounded-bl-xs border border-zinc-200/50 dark:border-zinc-700/50'
+                        }`}
                     >
                       {/* Text content with task links and mentions */}
                       {msg.content && (
@@ -648,11 +666,10 @@ export function ProjectChatWidget() {
                         <Tooltip title={msg.is_pinned ? 'Bỏ ghim' : 'Ghim tin nhắn'}>
                           <button
                             onClick={() => pinMessage(msg.id)}
-                            className={`p-1 rounded transition-colors ${
-                              msg.is_pinned
-                                ? 'text-amber-500'
-                                : 'text-zinc-400 hover:text-amber-500'
-                            }`}
+                            className={`p-1 rounded transition-colors ${msg.is_pinned
+                              ? 'text-amber-500'
+                              : 'text-zinc-400 hover:text-amber-500'
+                              }`}
                           >
                             <PushPin size={12} weight={msg.is_pinned ? 'fill' : 'regular'} />
                           </button>
@@ -905,11 +922,10 @@ export function ProjectChatWidget() {
               type="button"
               onClick={handleSend}
               disabled={(!inputContent.trim() && selectedAttachments.length === 0) || isSending}
-              className={`p-1.5 px-2.5 rounded-lg flex items-center gap-1 transition-all ${
-                inputContent.trim() || selectedAttachments.length > 0
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-xs'
-                  : 'text-zinc-300 dark:text-zinc-600 cursor-not-allowed'
-              }`}
+              className={`p-1.5 px-2.5 rounded-lg flex items-center gap-1 transition-all ${inputContent.trim() || selectedAttachments.length > 0
+                ? 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-xs'
+                : 'text-zinc-300 dark:text-zinc-600 cursor-not-allowed'
+                }`}
             >
               <span className="text-[11px] font-semibold">Gửi</span>
               <PaperPlaneTilt size={13} weight="fill" />

@@ -60,9 +60,10 @@ class AuthController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-            'name'   => 'sometimes|required|string|max:255',
-            'email'  => 'sometimes|required|email|unique:users,email,' . $user->id,
-            'avatar' => 'sometimes|nullable|string|max:500',
+            'name'     => 'sometimes|required|string|max:255',
+            'username' => 'sometimes|required|string|max:100|unique:users,username,' . $user->id,
+            'email'    => 'sometimes|required|email|unique:users,email,' . $user->id,
+            'avatar'   => 'sometimes|nullable|string|max:500',
         ]);
 
         $user->update($validated);

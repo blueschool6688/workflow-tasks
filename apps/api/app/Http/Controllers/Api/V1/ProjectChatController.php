@@ -21,19 +21,43 @@ class ProjectChatController extends Controller
     {
         $this->authorize('view', $project);
 
-        $limit = min((int) $request->input('limit', 50), 100);
-        $before = $request->input('before');
+        $limit = min(max((int) $request->input('limit', 50), 1), 100);
+        $cursor = $request->input('cursor') ?? $request->input('before_id') ?? $request->input('before_cursor') ?? $request->input('before');
 
         $query = ProjectMessage::query()
             ->where('project_id', $project->id)
             ->with(['user:id,name,avatar', 'replyTo.user:id,name', 'pinnedBy:id,name'])
-            ->orderBy('created_at', 'desc');
+            ->orderBy('sequence_id', 'desc');
 
-        if ($before) {
-            $query->where('created_at', '<', $before);
+        if ($cursor) {
+            if (is_numeric($cursor)) {
+                $query->where('sequence_id', '<', (int) $cursor);
+            } elseif (\Illuminate\Support\Str::isUuid($cursor)) {
+                $refMsg = ProjectMessage::find($cursor);
+                if ($refMsg && $refMsg->sequence_id) {
+                    $query->where('sequence_id', '<', $refMsg->sequence_id);
+                }
+            } else {
+                // Fallback for timestamp strings
+                $query->where('created_at', '<', $cursor);
+            }
         }
 
-        $messages = $query->limit($limit)->get()->reverse()->values();
+        // Fetch limit + 1 to calculate has_more
+        $rawMessages = $query->limit($limit + 1)->get();
+        $hasMore = $rawMessages->count() > $limit;
+
+        if ($hasMore) {
+            $rawMessages = $rawMessages->slice(0, $limit);
+        }
+
+        $nextCursor = null;
+        if ($rawMessages->isNotEmpty()) {
+            $oldest = $rawMessages->last();
+            $nextCursor = $oldest->sequence_id;
+        }
+
+        $messages = $rawMessages->reverse()->values();
 
         // Fetch project members for presence header and @member mention
         $members = $project->members()->select('users.id', 'users.name', 'users.avatar')->get();
@@ -59,6 +83,16 @@ class ProjectChatController extends Controller
             'members' => $members,
             'tasks' => $tasks,
             'pinned_message' => $pinnedMessage,
+            'project' => [
+                'id' => $project->id,
+                'key' => $project->key,
+                'name' => $project->name,
+            ],
+            'pagination' => [
+                'limit' => $limit,
+                'has_more' => $hasMore,
+                'next_cursor' => $hasMore ? $nextCursor : null,
+            ],
         ]);
     }
 

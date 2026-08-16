@@ -1,9 +1,8 @@
 import { create } from 'zustand';
 import {
   ProjectChatMessage,
-  ChatUser,
   ProjectTaskRef,
-  ProjectSummaryOption,
+  ChatUser,
   ChatAttachment,
   fetchProjectMessagesApi,
   sendProjectMessageApi,
@@ -12,35 +11,46 @@ import {
   deleteProjectMessageApi,
   sendTypingSignalApi,
   fetchAccessibleProjectsApi,
+  ProjectSummaryOption,
 } from '@/features/chat/api/projectChatApi';
+import { useAuthStore } from '@/stores/authStore';
 import { getEcho, subscribeSocketStatus, SocketConnectionStatus } from '@/lib/echoService';
-import { useAuthStore } from './authStore';
 
-interface TypingUser {
+export interface TypingUser {
   id: number | string;
   name: string;
 }
 
 interface ProjectChatState {
+  // Widget Visibility & Active Context
   isOpen: boolean;
   isExpanded: boolean;
   currentProjectId: string | null;
   currentProjectKey: string | null;
+
+  // Data
   messages: ProjectChatMessage[];
+  pinnedMessage: ProjectChatMessage | null;
   members: ChatUser[];
   availableTasks: ProjectTaskRef[];
-  pinnedMessage: ProjectChatMessage | null;
   accessibleProjects: ProjectSummaryOption[];
   typingUsers: TypingUser[];
+
+  // Cursor Pagination State
+  hasMore: boolean;
+  nextCursor: number | string | null;
+  isLoadingMore: boolean;
+
+  // Composer State
   replyingTo: ProjectChatMessage | null;
   selectedAttachments: ChatAttachment[];
   isLoading: boolean;
   isSending: boolean;
   isUploadingAttachment: boolean;
+
+  // Real-time State
   subscribedChannelNames: string[];
   socketStatus: SocketConnectionStatus;
-
-  // Typing throttling state
   lastTypingSentAt: number;
   typingStopTimer: NodeJS.Timeout | null;
 
@@ -51,20 +61,25 @@ interface ProjectChatState {
   toggleExpand: () => void;
   switchProject: (projectId: string, projectKey: string) => void;
   loadAccessibleProjects: () => Promise<void>;
-  setReplyingTo: (message: ProjectChatMessage | null) => void;
   loadMessages: (projectId: string) => Promise<void>;
-  sendMessage: (content: string) => Promise<void>;
+  loadOlderMessages: () => Promise<void>;
+
+  // Composer Actions
+  setReplyingTo: (message: ProjectChatMessage | null) => void;
   uploadAndAddAttachment: (file: File) => Promise<void>;
   removeAttachment: (index: number) => void;
   clearAttachments: () => void;
+  sendMessage: (content: string) => Promise<void>;
   pinMessage: (messageId: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
-  receiveMessage: (message: ProjectChatMessage) => void;
+
+  // Real-time Event Handlers
+  receiveMessage: (rawEvent: unknown) => void;
   handlePinEvent: (data: { is_pinned: boolean; message: ProjectChatMessage | null }) => void;
   handleTypingEvent: (user: TypingUser, isTyping: boolean) => void;
   sendTypingThrottled: () => void;
   stopTypingImmediately: () => void;
-  subscribeToProjectChannel: (projectId: string, projectKey?: string) => void;
+  subscribeToProjectChannel: (channelIdentifier: string) => void;
   unsubscribeFromProjectChannel: () => void;
 }
 
@@ -74,11 +89,14 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
   currentProjectId: null,
   currentProjectKey: null,
   messages: [],
+  pinnedMessage: null,
   members: [],
   availableTasks: [],
-  pinnedMessage: null,
   accessibleProjects: [],
   typingUsers: [],
+  hasMore: false,
+  nextCursor: null,
+  isLoadingMore: false,
   replyingTo: null,
   selectedAttachments: [],
   isLoading: false,
@@ -97,7 +115,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     });
     get().loadAccessibleProjects();
     get().loadMessages(projectId);
-    get().subscribeToProjectChannel(projectId, projectKey);
+    get().subscribeToProjectChannel(projectId);
   },
 
   closeChat: () => {
@@ -143,9 +161,12 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
       replyingTo: null,
       selectedAttachments: [],
       typingUsers: [],
+      hasMore: false,
+      nextCursor: null,
+      isLoadingMore: false,
     });
     get().loadMessages(projectId);
-    get().subscribeToProjectChannel(projectId, projectKey);
+    get().subscribeToProjectChannel(projectId);
   },
 
   loadAccessibleProjects: async () => {
@@ -164,25 +185,50 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
   loadMessages: async (projectId: string) => {
     try {
       set({ isLoading: true });
-      const res = await fetchProjectMessagesApi(projectId);
+      const res = await fetchProjectMessagesApi(projectId, null, 50);
       set({
         messages: res.data || [],
         members: res.members || [],
         availableTasks: res.tasks || [],
         pinnedMessage: res.pinned_message || null,
+        hasMore: res.pagination?.has_more ?? false,
+        nextCursor: res.pagination?.next_cursor ?? null,
       });
 
-      // If backend gave messages with a concrete UUID project_id, also ensure channel is bound to that UUID
-      if (res.data && res.data.length > 0 && res.data[0].project_id) {
-        const realUuid = res.data[0].project_id;
-        if (realUuid !== projectId) {
-          get().subscribeToProjectChannel(realUuid, projectId);
-        }
+      // Bind channel to canonical project UUID once received
+      const canonicalId = res.project?.id || (res.data && res.data.length > 0 ? res.data[0].project_id : null);
+      if (canonicalId) {
+        get().subscribeToProjectChannel(canonicalId);
       }
     } catch {
       // Ignore
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  loadOlderMessages: async () => {
+    const { currentProjectId, nextCursor, hasMore, isLoadingMore, messages } = get();
+    if (!currentProjectId || !hasMore || !nextCursor || isLoadingMore) return;
+
+    try {
+      set({ isLoadingMore: true });
+      const res = await fetchProjectMessagesApi(currentProjectId, nextCursor, 50);
+      const olderMessages = res.data || [];
+
+      // Prepend older messages while strictly deduplicating by ID
+      const existingIds = new Set(messages.map((m) => String(m.id)));
+      const filteredOlder = olderMessages.filter((m) => !existingIds.has(String(m.id)));
+
+      set({
+        messages: [...filteredOlder, ...messages],
+        hasMore: res.pagination?.has_more ?? false,
+        nextCursor: res.pagination?.next_cursor ?? null,
+      });
+    } catch (e) {
+      console.error('[Chat] Failed to load older messages:', e);
+    } finally {
+      set({ isLoadingMore: false });
     }
   },
 
@@ -215,37 +261,36 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
 
   sendMessage: async (content: string) => {
     const { currentProjectId, replyingTo, selectedAttachments } = get();
-    if (!currentProjectId || (!content.trim() && selectedAttachments.length === 0)) return;
-
-    get().stopTypingImmediately();
+    if (!currentProjectId) return;
+    if (!content.trim() && selectedAttachments.length === 0) return;
 
     const currentUser = useAuthStore.getState().user;
-    const tempId = 'temp-' + Date.now();
-    const attachmentsToSend = selectedAttachments.length > 0 ? [...selectedAttachments] : null;
+    if (!currentUser) return;
 
-    // Optimistic message
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const attachmentsToSend = selectedAttachments.length > 0 ? [...selectedAttachments] : undefined;
+
     const optimisticMessage: ProjectChatMessage = {
       id: tempId,
       project_id: currentProjectId,
-      user_id: currentUser?.id || 'me',
+      user_id: currentUser.id,
       content: content.trim(),
-      attachments: attachmentsToSend,
+      attachments: attachmentsToSend || null,
       reply_to_id: replyingTo?.id || null,
-      is_pinned: false,
       reply_to: replyingTo
         ? {
             id: replyingTo.id,
             content: replyingTo.content,
             user: {
-              id: replyingTo.user.id,
-              name: replyingTo.user.name,
+              id: replyingTo.user?.id || 0,
+              name: replyingTo.user?.name || '',
             },
           }
         : null,
       user: {
-        id: currentUser?.id || 'me',
-        name: currentUser?.name || 'Tôi',
-        avatar: (currentUser as unknown as { avatar_url?: string; avatar?: string })?.avatar_url || (currentUser as unknown as { avatar_url?: string; avatar?: string })?.avatar || null,
+        id: currentUser.id,
+        name: currentUser.name || 'User',
+        avatar: currentUser.avatar_url || null,
       },
       created_at: new Date().toISOString(),
     };
@@ -269,7 +314,8 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
         messages: state.messages.map((m) => (m.id === tempId ? realMessage : m)),
         isSending: false,
       }));
-    } catch {
+    } catch (err: unknown) {
+      console.error('[Chat] Failed to send message:', err);
       set((state) => ({
         messages: state.messages.filter((m) => m.id !== tempId),
         isSending: false,
@@ -314,14 +360,21 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     }
   },
 
-  receiveMessage: (message: ProjectChatMessage) => {
+  receiveMessage: (rawEvent: unknown) => {
+    if (!rawEvent) return;
+    const raw = rawEvent as Record<string, unknown>;
+    const message = (raw.messageData || raw.data || raw.message || raw) as ProjectChatMessage;
+
+    if (!message || !message.id) return;
+
     const currentUserId = useAuthStore.getState().user?.id;
     if (String(message.user_id) === String(currentUserId)) {
       return;
     }
 
     set((state) => {
-      if (state.messages.some((m) => m.id === message.id)) {
+      // Prevent duplicate messages by ID
+      if (state.messages.some((m) => String(m.id) === String(message.id))) {
         return state;
       }
       return {
@@ -395,7 +448,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     }
   },
 
-  subscribeToProjectChannel: (projectId: string, projectKey?: string) => {
+  subscribeToProjectChannel: (channelIdentifier: string) => {
     const echo = getEcho();
     if (!echo) return;
 
@@ -403,70 +456,32 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
       set({ socketStatus: status });
     });
 
-    const channelNamesToSubscribe = new Set<string>();
-    channelNamesToSubscribe.add(`project.${projectId}`);
-    if (projectKey && projectKey !== projectId) {
-      channelNamesToSubscribe.add(`project.${projectKey}`);
-      channelNamesToSubscribe.add(`project.${projectKey.toLowerCase()}`);
-      channelNamesToSubscribe.add(`project.${projectKey.toUpperCase()}`);
-    }
-
+    const targetChannel = `project.${channelIdentifier}`;
     const currentSubscribed = get().subscribedChannelNames;
-    const newChannelNames = Array.from(channelNamesToSubscribe);
 
-    // Bind listeners to all variations
-    newChannelNames.forEach((chName) => {
-      if (currentSubscribed.includes(chName)) return;
+    // Already subscribed to this exact channel
+    if (currentSubscribed.includes(targetChannel)) return;
 
-      const channel = echo.private(chName);
+    // Unsubscribe from any previous project channel first
+    get().unsubscribeFromProjectChannel();
 
-      // Listen for message events
-      channel
-        .listen('.ProjectMessageSent', (e: unknown) => {
-          get().receiveMessage(e as ProjectChatMessage);
-        })
-        .listen('ProjectMessageSent', (e: unknown) => {
-          get().receiveMessage(e as ProjectChatMessage);
-        })
-        .listen('.App\\Events\\ProjectMessageSent', (e: unknown) => {
-          get().receiveMessage(e as ProjectChatMessage);
-        })
-        .listen('App\\Events\\ProjectMessageSent', (e: unknown) => {
-          get().receiveMessage(e as ProjectChatMessage);
-        });
+    const channel = echo.private(targetChannel);
 
-      // Listen for pin events
-      channel
-        .listen('.ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
-          get().handlePinEvent(e);
-        })
-        .listen('ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
-          get().handlePinEvent(e);
-        })
-        .listen('.App\\Events\\ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
-          get().handlePinEvent(e);
-        })
-        .listen('App\\Events\\ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
-          get().handlePinEvent(e);
-        });
-
-      // Listen for typing events
-      channel
-        .listen('.TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
+    // Single listener per event name
+    channel
+      .listen('.ProjectMessageSent', (e: unknown) => {
+        get().receiveMessage(e);
+      })
+      .listen('.ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
+        get().handlePinEvent(e);
+      })
+      .listen('.TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
+        if (e?.user) {
           get().handleTypingEvent(e.user, e.is_typing);
-        })
-        .listen('TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
-          get().handleTypingEvent(e.user, e.is_typing);
-        })
-        .listen('.App\\Events\\TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
-          get().handleTypingEvent(e.user, e.is_typing);
-        })
-        .listen('App\\Events\\TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
-          get().handleTypingEvent(e.user, e.is_typing);
-        });
-    });
+        }
+      });
 
-    set({ subscribedChannelNames: Array.from(new Set([...currentSubscribed, ...newChannelNames])) });
+    set({ subscribedChannelNames: [targetChannel] });
   },
 
   unsubscribeFromProjectChannel: () => {

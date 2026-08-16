@@ -326,4 +326,42 @@ class NotificationAndChatTest extends TestCase
         ]);
         $typingRes->assertStatus(200);
     }
+
+    public function test_project_messages_cursor_pagination(): void
+    {
+        Sanctum::actingAs($this->adminUser, ['*']);
+
+        // Create 15 test messages with distinct timestamps
+        for ($i = 1; $i <= 15; $i++) {
+            ProjectMessage::create([
+                'project_id' => $this->project->id,
+                'user_id' => $this->adminUser->id,
+                'content' => "Tin nhắn pagination số {$i}",
+                'created_at' => now()->subMinutes(20 - $i),
+            ]);
+        }
+
+        // Fetch first batch with limit 5
+        $batch1 = $this->getJson("/api/v1/projects/{$this->project->id}/messages?limit=5");
+        $batch1->assertStatus(200)
+            ->assertJsonPath('pagination.limit', 5)
+            ->assertJsonPath('pagination.has_more', true);
+
+        $this->assertCount(5, $batch1->json('data'));
+        $nextCursor = $batch1->json('pagination.next_cursor');
+        $this->assertNotNull($nextCursor);
+        $this->assertIsNumeric($nextCursor);
+
+        // Fetch second batch using cursor
+        $batch2 = $this->getJson("/api/v1/projects/{$this->project->id}/messages?limit=5&cursor={$nextCursor}");
+        $batch2->assertStatus(200)
+            ->assertJsonPath('pagination.limit', 5);
+
+        $this->assertCount(5, $batch2->json('data'));
+
+        // Verify batch 1 and batch 2 don't overlap
+        $batch1Ids = array_column($batch1->json('data'), 'id');
+        $batch2Ids = array_column($batch2->json('data'), 'id');
+        $this->assertEmpty(array_intersect($batch1Ids, $batch2Ids));
+    }
 }

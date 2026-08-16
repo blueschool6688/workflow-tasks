@@ -140,4 +140,39 @@ class ComprehensiveApiTest extends TestCase
         $res = $this->getJson('/api/v1/tasks/NON-EXISTENT-TASK-999');
         $res->assertStatus(404);
     }
+
+    public function test_update_profile_and_change_password_endpoints(): void
+    {
+        // 1. Update Profile
+        $profileRes = $this->patchJson('/api/v1/auth/profile', [
+            'name' => 'Admin Updated Name',
+            'username' => 'admin_updated',
+            'email' => 'admin_updated@tasks.local',
+        ]);
+
+        $profileRes->assertStatus(200)
+            ->assertJsonPath('user.name', 'Admin Updated Name')
+            ->assertJsonPath('user.username', 'admin_updated')
+            ->assertJsonPath('user.email', 'admin_updated@tasks.local');
+
+        $this->user->refresh();
+        $this->assertEquals('Admin Updated Name', $this->user->name);
+        $this->assertEquals('admin_updated', $this->user->username);
+
+        // 2. Change Password validation error (wrong current password)
+        $wrongPassRes = $this->putJson('/api/v1/auth/password', [
+            'current_password' => 'wrongpassword123',
+            'password' => 'newpassword1234',
+            'password_confirmation' => 'newpassword1234',
+        ]);
+        $wrongPassRes->assertStatus(422);
+
+        // 3. Change Password success
+        $changePassRes = $this->putJson('/api/v1/auth/password', [
+            'current_password' => 'password',
+            'password' => 'newpassword1234',
+            'password_confirmation' => 'newpassword1234',
+        ]);
+        $changePassRes->assertStatus(200);
+    }
 }
