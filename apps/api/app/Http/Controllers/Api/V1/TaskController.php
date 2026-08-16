@@ -33,7 +33,25 @@ class TaskController extends Controller
         $tasks = Task::query()
             ->where('project_id', $project->id)
             ->with(['status', 'assignee', 'reporter', 'epic', 'sprint'])
-            ->when($request->input('sprint_id'), fn ($q, $v) => $q->where('sprint_id', $v))
+            ->when($request->input('sprint_id'), function ($q, $v) use ($project) {
+                if ($v === 'backlog' || $v === 'none') {
+                    return $q->whereNull('sprint_id');
+                }
+                if (\Illuminate\Support\Str::isUuid($v)) {
+                    return $q->where('sprint_id', $v);
+                }
+                $lower = strtolower($v);
+                $sprint = \App\Models\Sprint::where('project_id', $project->id)
+                    ->where(function ($sq) use ($lower, $v) {
+                        $sq->whereRaw('LOWER(name) LIKE ?', ["%{$lower}%"])
+                           ->orWhereRaw('LOWER(name) LIKE ?', ['%' . str_replace('-', ' ', $lower) . '%']);
+                    })
+                    ->first();
+                if ($sprint) {
+                    return $q->where('sprint_id', $sprint->id);
+                }
+                return $q->whereRaw('1 = 0');
+            })
             ->when($request->input('epic_id'), fn ($q, $v) => $q->where('epic_id', $v))
             ->when($request->input('assignee_id'), fn ($q, $v) => $q->where('assignee_id', $v))
             ->when($request->input('status_id'), fn ($q, $v) => $q->where('status_id', $v))
@@ -47,7 +65,7 @@ class TaskController extends Controller
     }
 
     /** Kanban Board columns with tasks grouped by status */
-    public function board(Project $project): JsonResponse
+    public function board(Request $request, Project $project): JsonResponse
     {
         $this->authorize('view', $project);
 
@@ -58,7 +76,28 @@ class TaskController extends Controller
             $statuses = \App\Models\WorkflowStatus::orderBy('order')->get();
         }
 
+        $sprintId = $request->input('sprint_id');
+
         $tasks = $project->tasks()
+            ->when($sprintId, function ($query, $sprintId) use ($project) {
+                if ($sprintId === 'backlog' || $sprintId === 'none') {
+                    return $query->whereNull('sprint_id');
+                }
+                if (\Illuminate\Support\Str::isUuid($sprintId)) {
+                    return $query->where('sprint_id', $sprintId);
+                }
+                $lower = strtolower($sprintId);
+                $sprint = \App\Models\Sprint::where('project_id', $project->id)
+                    ->where(function ($sq) use ($lower) {
+                        $sq->whereRaw('LOWER(name) LIKE ?', ["%{$lower}%"])
+                           ->orWhereRaw('LOWER(name) LIKE ?', ['%' . str_replace('-', ' ', $lower) . '%']);
+                    })
+                    ->first();
+                if ($sprint) {
+                    return $query->where('sprint_id', $sprint->id);
+                }
+                return $query->whereRaw('1 = 0');
+            })
             ->with(['status', 'assignee', 'reporter'])
             ->orderBy('order')
             ->get();
@@ -150,8 +189,20 @@ class TaskController extends Controller
             'labels'           => 'nullable|array',
         ]);
 
+        $oldStatusId = $task->status_id;
+        $oldStatusName = $task->status?->name ?? 'To Do';
         $oldValues = $task->only(array_keys($validated));
         $task->update($validated);
+
+        if (isset($validated['status_id']) && (string) $validated['status_id'] !== (string) $oldStatusId) {
+            $newStatusName = $task->fresh()->status?->name ?? 'Mới';
+            app(\App\Services\NotificationService::class)->notifyTaskStatusChanged(
+                $task->fresh(),
+                $oldStatusName,
+                $newStatusName,
+                $request->user()
+            );
+        }
 
         activity('task_workflow')
             ->performedOn($task)
@@ -194,6 +245,15 @@ class TaskController extends Controller
             ->causedBy($request->user())
             ->withProperties(['old_status' => $oldStatusName, 'new_status' => $newStatusName])
             ->log("Đã chuyển trạng thái từ '{$oldStatusName}' sang '{$newStatusName}'");
+
+        if ($oldStatusName !== $newStatusName) {
+            app(\App\Services\NotificationService::class)->notifyTaskStatusChanged(
+                $task->fresh(),
+                $oldStatusName,
+                $newStatusName,
+                $request->user()
+            );
+        }
 
         return response()->json(['data' => new TaskResource($task->fresh()->load('status'))]);
     }

@@ -25,9 +25,10 @@ import {
   MoreOutlined,
   BranchesOutlined,
   DeleteOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/axios';
 import { TaskDetailModal } from '@/features/tasks/components/TaskDetailModal';
 import { CreateTaskModal } from '@/features/tasks/components/CreateTaskModal';
@@ -57,6 +58,7 @@ interface SprintItem {
 
 export function BacklogPage({ projectKey }: { projectKey: string }) {
   const { message } = App.useApp();
+  const router = useRouter();
   const pKey = projectKey.toUpperCase();
   const searchParams = useSearchParams();
   const sprintIdParam = searchParams.get('sprintId');
@@ -447,6 +449,14 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
                     pts
                   </strong>
                 </span>
+                <Button
+                  type="primary"
+                  icon={<AppstoreOutlined />}
+                  className="bg-indigo-600"
+                  onClick={() => router.push(`/projects/${projectKey}/sprints/${activeSprint.id}/board`)}
+                >
+                  Xem Bảng Board
+                </Button>
                 <Popconfirm
                   title="Xác nhận hoàn tất Sprint này?"
                   description="Các task dở dang sẽ được chuyển giao sang Sprint tiếp theo."

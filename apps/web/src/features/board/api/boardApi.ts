@@ -26,9 +26,11 @@ export interface KanbanColumnData {
   tasks: KanbanTask[];
 }
 
-export async function getKanbanBoardApi(projectKey: string): Promise<KanbanColumnData[]> {
+export async function getKanbanBoardApi(projectKey: string, sprintId?: string): Promise<KanbanColumnData[]> {
   try {
-    const res = await api.get(`/projects/${projectKey}/board`);
+    const res = await api.get(`/projects/${projectKey}/board`, {
+      params: sprintId ? { sprint_id: sprintId } : undefined,
+    });
     const rawCols = res.data.data || res.data;
 
     if (Array.isArray(rawCols) && rawCols.length > 0) {
@@ -53,7 +55,7 @@ export async function getKanbanBoardApi(projectKey: string): Promise<KanbanColum
     }
     throw new Error('Empty board data');
   } catch {
-    // Return mock data for initial UI verification
+    const pKey = projectKey.toUpperCase();
     return [
       {
         id: 'todo',
@@ -61,7 +63,8 @@ export async function getKanbanBoardApi(projectKey: string): Promise<KanbanColum
         category: 'todo',
         tasks: [
           {
-            id: 'PROJ-101',
+            id: `${pKey}-101`,
+            task_number: `${pKey}-101`,
             title: 'Thiết kế Schema Multi-tenant Organization & Workspace',
             status: 'todo',
             priority: 'high',
@@ -71,7 +74,8 @@ export async function getKanbanBoardApi(projectKey: string): Promise<KanbanColum
             estimate: '4h',
           },
           {
-            id: 'PROJ-102',
+            id: `${pKey}-102`,
+            task_number: `${pKey}-102`,
             title: 'Tích hợp Spatie Permission Shield & Policy Gates',
             status: 'todo',
             priority: 'urgent',
@@ -88,7 +92,8 @@ export async function getKanbanBoardApi(projectKey: string): Promise<KanbanColum
         wip_limit: 3,
         tasks: [
           {
-            id: 'PROJ-103',
+            id: `${pKey}-103`,
+            task_number: `${pKey}-103`,
             title: 'Xây dựng Bảng Kanban kéo thả với dnd-kit & motion',
             status: 'in_progress',
             priority: 'urgent',
@@ -105,7 +110,8 @@ export async function getKanbanBoardApi(projectKey: string): Promise<KanbanColum
         category: 'in_progress',
         tasks: [
           {
-            id: 'PROJ-104',
+            id: `${pKey}-104`,
+            task_number: `${pKey}-104`,
             title: 'Cấu hình Scramble OpenAPI & sync generator sang api-types',
             status: 'review',
             priority: 'medium',
@@ -121,7 +127,8 @@ export async function getKanbanBoardApi(projectKey: string): Promise<KanbanColum
         category: 'done',
         tasks: [
           {
-            id: 'PROJ-100',
+            id: `${pKey}-100`,
+            task_number: `${pKey}-100`,
             title: 'Khởi tạo cấu trúc Turborepo Monorepo & Pnpm workspaces',
             status: 'done',
             priority: 'medium',

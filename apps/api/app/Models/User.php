@@ -56,4 +56,17 @@ class User extends Authenticatable implements FilamentUser
                     ->withPivot('role')
                     ->withTimestamps();
     }
+
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class, 'project_members')
+                    ->using(ProjectMember::class)
+                    ->withPivot('role_in_project')
+                    ->withTimestamps();
+    }
+
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
 }

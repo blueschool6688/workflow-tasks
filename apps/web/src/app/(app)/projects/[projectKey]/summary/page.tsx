@@ -417,10 +417,10 @@ export default function ProjectSummaryPage() {
                   <Button
                     type="link"
                     size="small"
-                    onClick={() => router.push(`/projects/${projectKey}/backlog?sprintId=${sprint.id}`)}
+                    onClick={() => router.push(`/projects/${projectKey}/sprints/${sprint.id}/board`)}
                     className="p-0 text-xs flex items-center gap-1"
                   >
-                    Xem tasks <ArrowRightOutlined />
+                    Xem Board <ArrowRightOutlined />
                   </Button>
                 </div>
 

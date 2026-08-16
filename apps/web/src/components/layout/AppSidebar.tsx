@@ -114,9 +114,12 @@ export function AppSidebar({
     .filter((item): item is { key: string } & any => Boolean(item && 'key' in item))
     .sort((a, b) => (String(b.key).length - String(a.key).length));
 
-  const selectedKey = sortedNavItems.find(
-    (item) => pathname === item.key || pathname.startsWith(`${item.key}/`) || (item.key === '/projects' && pathname === '/projects')
-  )?.key as string || pathname;
+  const selectedKey = sortedNavItems.find((item) => {
+    if (pathname === item.key || pathname.startsWith(`${item.key}/`)) return true;
+    if (item.key === `${projectBase}/board` && pathname.includes('/sprints/') && pathname.includes('/board')) return true;
+    if (item.key === '/projects' && pathname === '/projects') return true;
+    return false;
+  })?.key as string || pathname;
 
   const sidebarContent = (
     <div className="h-full flex flex-col justify-between overflow-hidden">

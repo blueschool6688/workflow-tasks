@@ -115,4 +115,29 @@ class ComprehensiveApiTest extends TestCase
         $res->assertStatus(201);
         $res->assertJsonStructure(['data' => ['id', 'task_number', 'title']]);
     }
+
+    public function test_board_and_tasks_with_non_uuid_sprint_slugs(): void
+    {
+        // 1. Non-UUID sprint slug like "sprint-24" should return 200 OK without Postgres 22P02 error
+        $boardSlugRes = $this->getJson('/api/v1/projects/core-eng/board?sprint_id=sprint-24');
+        $boardSlugRes->assertStatus(200);
+
+        // 2. Backlog filter
+        $boardBacklogRes = $this->getJson('/api/v1/projects/core-eng/board?sprint_id=backlog');
+        $boardBacklogRes->assertStatus(200);
+
+        // 3. Tasks index with sprint slug
+        $tasksSlugRes = $this->getJson('/api/v1/projects/core-eng/tasks?sprint_id=sprint-24');
+        $tasksSlugRes->assertStatus(200);
+
+        // 4. Tasks index with backlog
+        $tasksBacklogRes = $this->getJson('/api/v1/projects/core-eng/tasks?sprint_id=backlog');
+        $tasksBacklogRes->assertStatus(200);
+    }
+
+    public function test_non_existent_task_returns_404(): void
+    {
+        $res = $this->getJson('/api/v1/tasks/NON-EXISTENT-TASK-999');
+        $res->assertStatus(404);
+    }
 }

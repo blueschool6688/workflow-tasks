@@ -6,7 +6,9 @@ use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\EpicController;
 use App\Http\Controllers\Api\V1\LabelController;
 use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OrganizationController;
+use App\Http\Controllers\Api\V1\ProjectChatController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\SprintController;
 use App\Http\Controllers\Api\V1\TaskCommentController;
@@ -140,4 +142,23 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Activity Logs (admin)
     Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+
+    // Notifications
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::patch('/{notification}/read', [NotificationController::class, 'markRead']);
+        Route::post('/read-all', [NotificationController::class, 'markAllRead']);
+        Route::delete('/{notification}', [NotificationController::class, 'destroy']);
+    });
+
+    // Project Chat
+    Route::prefix('projects/{project}')->group(function () {
+        Route::get('/messages', [ProjectChatController::class, 'index']);
+        Route::post('/messages', [ProjectChatController::class, 'store']);
+        Route::post('/messages/upload', [ProjectChatController::class, 'upload']);
+        Route::patch('/messages/{message}/pin', [ProjectChatController::class, 'pin']);
+        Route::delete('/messages/{message}', [ProjectChatController::class, 'destroy']);
+        Route::post('/typing', [ProjectChatController::class, 'typing']);
+    });
 });

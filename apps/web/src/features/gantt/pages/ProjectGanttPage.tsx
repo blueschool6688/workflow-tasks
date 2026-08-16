@@ -195,9 +195,9 @@ export function ProjectGanttPage({ projectKey }: { projectKey: string }) {
     });
   }, [sprints, dateFilterPreset, timelineWindow]);
 
-  // Navigate to Backlog with sprint filter
+  // Navigate to Sprint Board
   const handleSprintClick = (sprintId: string) => {
-    router.push(`/projects/${projectKey}/backlog?sprintId=${sprintId}`);
+    router.push(`/projects/${projectKey}/sprints/${sprintId}/board`);
   };
 
   // Helper for timeline position calculation

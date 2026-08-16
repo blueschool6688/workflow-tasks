@@ -1,14 +1,11 @@
 import { redirect } from 'next/navigation';
 import { api } from '@/lib/axios';
 
-export async function generateMetadata({ params }: { params: Promise<{ projectKey: string }> }) {
-  const { projectKey } = await params;
-  return {
-    title: `Bảng Kanban — ${projectKey.toUpperCase()} — Tasks`,
-  };
-}
-
-export default async function ProjectBoardRoutePage({ params }: { params: Promise<{ projectKey: string }> }) {
+export default async function ProjectSprintsIndexPage({
+  params,
+}: {
+  params: Promise<{ projectKey: string }>;
+}) {
   const { projectKey } = await params;
 
   let activeSprintId = 'sprint-24';

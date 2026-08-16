@@ -1,32 +1,31 @@
-# Implementation Plan: Sprints Timeline, Summary Reports, Workspace Dashboard & Rich Content Editor
+# Implementation Plan: Real-time Task Status Notifications & Project Team Chatbox
 
 ## Overview
-Nâng cấp và hoàn thiện 5 tính năng cốt lõi cho ứng dụng:
-1. Module Dự án: Hiển thị các Sprints theo biểu đồ đường ngang (Horizontal Timeline Chart) có bộ lọc ngày tháng linh hoạt.
-2. Khi click vào chi tiết Sprint -> Tự động chuyển hướng đến trang Quản lý Backlog / Board lọc riêng các tasks của Sprint đó.
-3. Tab Báo cáo Dự án (Project Summary): Tổng hợp toàn bộ Sprints và Tasks trong dự án kèm biểu đồ và bảng dữ liệu chi tiết.
-4. Tab Dashboard: Tổng hợp toàn diện dữ liệu trong Workspace hiện tại với hệ thống KPI, biểu đồ Recharts và bảng dữ liệu công việc.
-5. Task Detail Modal: Sử dụng trình soạn thảo nội dung giàu tính năng (Rich Content / Markdown Editor) cho trường Description.
+Xây dựng hệ sinh thái thông báo thời gian thực (Real-time Notifications) khi chuyển trạng thái Task (bắn notify cho Người được giao / Assignee, Người theo dõi/tạo / Reporter/Consignee, và Quản trị viên / Admins) cùng hệ thống Chatbox Dự án thời gian thực (Project Team Chatbox).
 
-## Task Breakdown
+## Task List
 
-### Phase 1: Rich Text / Markdown Editor Component
-- [x] Task 1.1: Xây dựng component [`RichTextEditor.tsx`](file:///c:/laragon/www/tasks/apps/web/src/components/ui/RichTextEditor.tsx) với đầy đủ công cụ định dạng (Bold, Italic, Strike, H1-H3, Bullet, Numbered list, Code, Blockquote, Link, Preview).
-- [x] Task 1.2: Tích hợp `RichTextEditor` vào [`TaskDetailModal.tsx`](file:///c:/laragon/www/tasks/apps/web/src/features/tasks/components/TaskDetailModal.tsx) và [`CreateTaskModal.tsx`](file:///c:/laragon/www/tasks/apps/web/src/features/tasks/components/CreateTaskModal.tsx).
+### Phase 1: Database Architecture & Backend Events
+- [x] Task 1.1: Tạo migration và Model cho `Notification` (`notifications` table).
+- [x] Task 1.2: Tạo migration và Model cho `ProjectMessage` (`project_messages` table).
+- [x] Task 1.3: Tạo các Event phát sóng `TaskStatusChanged` và `ProjectMessageSent`, `TypingIndicator`.
+- [x] Task 1.4: Tạo `NotificationController` và `ProjectChatController` kèm định tuyến API.
+- [x] Task 1.5: Tích hợp logic tự động tạo thông báo và kích hoạt event trong `TaskController` qua `NotificationService`.
 
-### Phase 2: Sprints Horizontal Timeline & Drill-down Redirection
-- [x] Task 2.1: Nâng cấp [`ProjectGanttPage.tsx`](file:///c:/laragon/www/tasks/apps/web/src/features/gantt/pages/ProjectGanttPage.tsx) hiển thị các thanh ngang Sprints theo trục thời gian thực kèm bộ lọc ngày tháng (RangePicker, Quick Presets).
-- [x] Task 2.2: Thêm sự kiện click trên Sprint bar điều hướng sang `/projects/[projectKey]/backlog?sprintId=...` và `/board?sprintId=...`.
-- [x] Task 2.3: Xử lý bộ lọc `sprintId` trong [`BacklogPage.tsx`](file:///c:/laragon/www/tasks/apps/web/src/features/backlog/pages/BacklogPage.tsx) và [`KanbanBoardPage.tsx`](file:///c:/laragon/www/tasks/apps/web/src/features/board/pages/KanbanBoardPage.tsx).
+### Phase 2: Real-time Client Engine & Stores (Frontend)
+- [x] Task 2.1: Xây dựng service `echoService.ts` quản lý kết nối Laravel Echo & Reverb WebSocket.
+- [x] Task 2.2: Xây dựng `notificationStore.ts` quản lý state thông báo và nhận notify realtime + Sonner toast.
+- [x] Task 2.3: Xây dựng `projectChatStore.ts` quản lý state chatbox và tin nhắn realtime, typing indicator.
+- [x] Task 2.4: Xây dựng `RealtimeProvider.tsx` quản lý vòng đời socket và kích hoạt mở nhanh TaskDetailModal.
 
-### Phase 3: Project Summary Aggregation
-- [x] Task 3.1: Nâng cấp [`ProjectSummaryPage.tsx`](file:///c:/laragon/www/tasks/apps/web/src/app/(app)/projects/[projectKey]/summary/page.tsx) tổng hợp tất cả Sprints (Active, Future, Completed) và tổng hợp danh sách Tasks.
-- [x] Task 3.2: Bổ sung bảng Master Tasks trong Project Summary kèm liên kết mở trực tiếp Modal 1000px Task Detail.
+### Phase 3: Notification Center UI
+- [x] Task 3.1: Nâng cấp `NotificationBell.tsx` với badge đếm số, dropdown phân tab (Tất cả, Chưa đọc, Công việc), visual status badge.
+- [x] Task 3.2: Tích hợp click thông báo mở trực tiếp `TaskDetailModal` 1000px.
 
-### Phase 4: Workspace Global Dashboard
-- [x] Task 4.1: Nâng cấp [`MyWorkDashboard.tsx`](file:///c:/laragon/www/tasks/apps/web/src/features/dashboard/pages/MyWorkDashboard.tsx) với các widget thống kê toàn workspace và biểu đồ Recharts (Trạng thái, Phân bổ theo Dự án, Khối lượng công việc theo nhân sự).
-- [x] Task 4.2: Tích hợp bảng danh sách công việc toàn diện (Workspace Tasks Table) có tìm kiếm, lọc theo dự án, trạng thái, người thực hiện và mở Task Detail Modal.
+### Phase 4: Project Team Chatbox Widget (Taste Design)
+- [x] Task 4.1: Xây dựng `ProjectChatWidget.tsx` với giao diện Glassmorphism, danh sách thành viên online, soạn tin nhắn, quick emoji picker, reply thread, typing indicator.
+- [x] Task 4.2: Tích hợp Chatbox vào `AppHeader.tsx` và `AppLayout.tsx`.
 
-## Verification
-- [x] Kiểm thử tự động backend: `php artisan test` đạt 100% pass (31/31 tests, 63 assertions).
-- [x] Kiểm tra giao diện người dùng trên web client mượt mà, không có lỗi console hay deprecation warnings.
+### Phase 5: Automated Testing & Verification
+- [x] Task 5.1: Viết test tự động PHPUnit `NotificationAndChatTest.php`.
+- [x] Task 5.2: Chạy kiểm thử xác nhận 100% test suite pass (38/38 tests passed, 93 assertions).

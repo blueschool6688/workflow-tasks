@@ -14,7 +14,10 @@ import {
   MenuOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/stores/authStore';
+import { useProjectChatStore } from '@/stores/projectChatStore';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
+import { ChatCircleDots } from '@phosphor-icons/react';
+import { Tooltip } from 'antd';
 
 interface AppHeaderProps {
   onOpenMobile?: () => void;
@@ -104,6 +107,16 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
           size="middle"
           className="hidden md:flex w-56 lg:w-64 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-900 border-none"
         />
+
+        <Tooltip title="Mở Chat Nhóm Dự Án">
+          <button
+            onClick={() => useProjectChatStore.getState().toggleChat()}
+            className="p-2 rounded-xl text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center justify-center"
+            aria-label="Chat nhóm"
+          >
+            <ChatCircleDots size={19} />
+          </button>
+        </Tooltip>
 
         <NotificationBell />
         <Switch
