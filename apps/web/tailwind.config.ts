@@ -32,6 +32,15 @@ const config: Config = {
         md: '6px',
         sm: '4px',
       },
+      keyframes: {
+        'skeleton-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.4' },
+        },
+      },
+      animation: {
+        'skeleton-pulse': 'skeleton-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
     },
   },
   plugins: [],
