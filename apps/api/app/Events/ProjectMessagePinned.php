@@ -53,9 +53,16 @@ class ProjectMessagePinned implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [
+        $channels = [
             new PrivateChannel('project.' . $this->projectId),
         ];
+
+        if ($this->message?->project?->key) {
+            $channels[] = new PrivateChannel('project.' . $this->message->project->key);
+            $channels[] = new PrivateChannel('project.' . strtolower($this->message->project->key));
+        }
+
+        return $channels;
     }
 
     public function broadcastAs(): string

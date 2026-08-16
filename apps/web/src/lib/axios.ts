@@ -2,7 +2,7 @@ import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://tasks.test/api/v1',
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -10,7 +10,19 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
+  let token = useAuthStore.getState().token;
+  if (!token && typeof window !== 'undefined') {
+    try {
+      const persisted = localStorage.getItem('tasks-auth');
+      if (persisted) {
+        const parsed = JSON.parse(persisted);
+        token = parsed?.state?.token;
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -21,9 +33,27 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+      const isAuthEndpoint =
+        error.config?.url?.includes('/auth/login') ||
+        error.config?.url?.includes('/auth/register');
+
+      if (!isAuthEndpoint) {
+        let hasToken = !!useAuthStore.getState().token;
+        if (!hasToken && typeof window !== 'undefined') {
+          try {
+            const persisted = localStorage.getItem('tasks-auth');
+            hasToken = !!JSON.parse(persisted || '{}')?.state?.token;
+          } catch {
+            // Ignore
+          }
+        }
+
+        if (hasToken) {
+          useAuthStore.getState().logout();
+          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login';
+          }
+        }
       }
     }
     return Promise.reject(error);

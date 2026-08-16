@@ -37,8 +37,8 @@ export function getEcho(): Echo<'reverb'> | null {
   const wsPort = Number(process.env.NEXT_PUBLIC_REVERB_PORT || 8080);
   const wssPort = Number(process.env.NEXT_PUBLIC_REVERB_PORT || 8080);
   const forceTLS = process.env.NEXT_PUBLIC_REVERB_SCHEME === 'https';
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-  const authEndpoint = apiBaseUrl.replace('/api/v1', '') + '/broadcasting/auth';
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://tasks.test/api/v1';
+  const authEndpoint = `${apiBaseUrl}/broadcasting/auth`;
 
   try {
     echoInstance = new Echo({

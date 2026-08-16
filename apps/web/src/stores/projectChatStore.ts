@@ -37,13 +37,12 @@ interface ProjectChatState {
   isLoading: boolean;
   isSending: boolean;
   isUploadingAttachment: boolean;
-  subscribedProjectId: string | null;
+  subscribedChannelNames: string[];
   socketStatus: SocketConnectionStatus;
 
-  // Typing throttling & polling state
+  // Typing throttling state
   lastTypingSentAt: number;
   typingStopTimer: NodeJS.Timeout | null;
-  pollTimer: NodeJS.Timeout | null;
 
   // Actions
   openChat: (projectId: string, projectKey?: string) => void;
@@ -65,10 +64,8 @@ interface ProjectChatState {
   handleTypingEvent: (user: TypingUser, isTyping: boolean) => void;
   sendTypingThrottled: () => void;
   stopTypingImmediately: () => void;
-  subscribeToProjectChannel: (projectId: string) => void;
+  subscribeToProjectChannel: (projectId: string, projectKey?: string) => void;
   unsubscribeFromProjectChannel: () => void;
-  startFallbackPolling: (projectId: string) => void;
-  stopFallbackPolling: () => void;
 }
 
 export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
@@ -87,11 +84,10 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
   isLoading: false,
   isSending: false,
   isUploadingAttachment: false,
-  subscribedProjectId: null,
+  subscribedChannelNames: [],
   socketStatus: 'disconnected',
   lastTypingSentAt: 0,
   typingStopTimer: null,
-  pollTimer: null,
 
   openChat: (projectId: string, projectKey?: string) => {
     set({
@@ -101,13 +97,12 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     });
     get().loadAccessibleProjects();
     get().loadMessages(projectId);
-    get().subscribeToProjectChannel(projectId);
-    get().startFallbackPolling(projectId);
+    get().subscribeToProjectChannel(projectId, projectKey);
   },
 
   closeChat: () => {
     get().stopTypingImmediately();
-    get().stopFallbackPolling();
+    get().unsubscribeFromProjectChannel();
     set({ isOpen: false, replyingTo: null, selectedAttachments: [] });
   },
 
@@ -137,7 +132,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
 
   switchProject: (projectId: string, projectKey: string) => {
     get().stopTypingImmediately();
-    get().stopFallbackPolling();
+    get().unsubscribeFromProjectChannel();
     set({
       currentProjectId: projectId,
       currentProjectKey: projectKey,
@@ -150,8 +145,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
       typingUsers: [],
     });
     get().loadMessages(projectId);
-    get().subscribeToProjectChannel(projectId);
-    get().startFallbackPolling(projectId);
+    get().subscribeToProjectChannel(projectId, projectKey);
   },
 
   loadAccessibleProjects: async () => {
@@ -177,48 +171,18 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
         availableTasks: res.tasks || [],
         pinnedMessage: res.pinned_message || null,
       });
+
+      // If backend gave messages with a concrete UUID project_id, also ensure channel is bound to that UUID
+      if (res.data && res.data.length > 0 && res.data[0].project_id) {
+        const realUuid = res.data[0].project_id;
+        if (realUuid !== projectId) {
+          get().subscribeToProjectChannel(realUuid, projectId);
+        }
+      }
     } catch {
-      // Fallback
+      // Ignore
     } finally {
       set({ isLoading: false });
-    }
-  },
-
-  startFallbackPolling: (projectId: string) => {
-    get().stopFallbackPolling();
-    const timer = setInterval(async () => {
-      const { isOpen, currentProjectId, messages } = get();
-      if (!isOpen || currentProjectId !== projectId) return;
-
-      try {
-        const res = await fetchProjectMessagesApi(projectId);
-        const freshMessages = res.data || [];
-
-        // Check if there are any new messages or status changes
-        if (
-          freshMessages.length !== messages.length ||
-          freshMessages.some((fm, idx) => messages[idx]?.id !== fm.id)
-        ) {
-          set({
-            messages: freshMessages,
-            members: res.members || get().members,
-            availableTasks: res.tasks || get().availableTasks,
-            pinnedMessage: res.pinned_message ?? null,
-          });
-        }
-      } catch {
-        // Silent
-      }
-    }, 3500);
-
-    set({ pollTimer: timer });
-  },
-
-  stopFallbackPolling: () => {
-    const { pollTimer } = get();
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      set({ pollTimer: null });
     }
   },
 
@@ -281,7 +245,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
       user: {
         id: currentUser?.id || 'me',
         name: currentUser?.name || 'Tôi',
-        avatar: currentUser?.avatar || null,
+        avatar: (currentUser as unknown as { avatar_url?: string; avatar?: string })?.avatar_url || (currentUser as unknown as { avatar_url?: string; avatar?: string })?.avatar || null,
       },
       created_at: new Date().toISOString(),
     };
@@ -431,56 +395,92 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     }
   },
 
-  subscribeToProjectChannel: (projectId: string) => {
-    if (get().subscribedProjectId === projectId) {
-      return;
-    }
-
-    get().unsubscribeFromProjectChannel();
+  subscribeToProjectChannel: (projectId: string, projectKey?: string) => {
+    const echo = getEcho();
+    if (!echo) return;
 
     subscribeSocketStatus((status) => {
       set({ socketStatus: status });
     });
 
-    const echo = getEcho();
-    if (!echo) return;
+    const channelNamesToSubscribe = new Set<string>();
+    channelNamesToSubscribe.add(`project.${projectId}`);
+    if (projectKey && projectKey !== projectId) {
+      channelNamesToSubscribe.add(`project.${projectKey}`);
+      channelNamesToSubscribe.add(`project.${projectKey.toLowerCase()}`);
+      channelNamesToSubscribe.add(`project.${projectKey.toUpperCase()}`);
+    }
 
-    const channelName = `project.${projectId}`;
-    set({ subscribedProjectId: projectId });
+    const currentSubscribed = get().subscribedChannelNames;
+    const newChannelNames = Array.from(channelNamesToSubscribe);
 
-    echo
-      .private(channelName)
-      .listen('.ProjectMessageSent', (e: unknown) => {
-        get().receiveMessage(e as ProjectChatMessage);
-      })
-      .listen('ProjectMessageSent', (e: unknown) => {
-        get().receiveMessage(e as ProjectChatMessage);
-      })
-      .listen('.ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
-        get().handlePinEvent(e);
-      })
-      .listen('ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
-        get().handlePinEvent(e);
-      })
-      .listen('.TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
-        get().handleTypingEvent(e.user, e.is_typing);
-      })
-      .listen('TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
-        get().handleTypingEvent(e.user, e.is_typing);
-      });
+    // Bind listeners to all variations
+    newChannelNames.forEach((chName) => {
+      if (currentSubscribed.includes(chName)) return;
+
+      const channel = echo.private(chName);
+
+      // Listen for message events
+      channel
+        .listen('.ProjectMessageSent', (e: unknown) => {
+          get().receiveMessage(e as ProjectChatMessage);
+        })
+        .listen('ProjectMessageSent', (e: unknown) => {
+          get().receiveMessage(e as ProjectChatMessage);
+        })
+        .listen('.App\\Events\\ProjectMessageSent', (e: unknown) => {
+          get().receiveMessage(e as ProjectChatMessage);
+        })
+        .listen('App\\Events\\ProjectMessageSent', (e: unknown) => {
+          get().receiveMessage(e as ProjectChatMessage);
+        });
+
+      // Listen for pin events
+      channel
+        .listen('.ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
+          get().handlePinEvent(e);
+        })
+        .listen('ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
+          get().handlePinEvent(e);
+        })
+        .listen('.App\\Events\\ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
+          get().handlePinEvent(e);
+        })
+        .listen('App\\Events\\ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
+          get().handlePinEvent(e);
+        });
+
+      // Listen for typing events
+      channel
+        .listen('.TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
+          get().handleTypingEvent(e.user, e.is_typing);
+        })
+        .listen('TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
+          get().handleTypingEvent(e.user, e.is_typing);
+        })
+        .listen('.App\\Events\\TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
+          get().handleTypingEvent(e.user, e.is_typing);
+        })
+        .listen('App\\Events\\TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
+          get().handleTypingEvent(e.user, e.is_typing);
+        });
+    });
+
+    set({ subscribedChannelNames: Array.from(new Set([...currentSubscribed, ...newChannelNames])) });
   },
 
   unsubscribeFromProjectChannel: () => {
-    const { subscribedProjectId } = get();
-    get().stopFallbackPolling();
-    if (!subscribedProjectId) return;
+    const { subscribedChannelNames } = get();
+    if (subscribedChannelNames.length === 0) return;
 
     const echo = getEcho();
     if (echo) {
-      echo.leave(`private-project.${subscribedProjectId}`);
-      echo.leave(`project.${subscribedProjectId}`);
+      subscribedChannelNames.forEach((chName) => {
+        echo.leave(`private-${chName}`);
+        echo.leave(chName);
+      });
     }
 
-    set({ subscribedProjectId: null, typingUsers: [] });
+    set({ subscribedChannelNames: [], typingUsers: [] });
   },
 }));

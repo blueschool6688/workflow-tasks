@@ -9,6 +9,7 @@ import {
   deleteNotificationApi,
 } from '@/features/notifications/api/notificationApi';
 import { getEcho } from '@/lib/echoService';
+import { useAuthStore } from './authStore';
 
 interface NotificationState {
   notifications: AppNotification[];
@@ -162,21 +163,21 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     set({ subscribedUserId: userId });
 
     if (echo) {
-      echo.private(channelName).listen('.TaskStatusChanged', (e: unknown) => {
-        get().addRealtimeNotification(e as AppNotification);
-      }).listen('TaskStatusChanged', (e: unknown) => {
-        get().addRealtimeNotification(e as AppNotification);
-      });
+      echo
+        .private(channelName)
+        .listen('.TaskStatusChanged', (e: unknown) => {
+          get().addRealtimeNotification(e as AppNotification);
+        })
+        .listen('TaskStatusChanged', (e: unknown) => {
+          get().addRealtimeNotification(e as AppNotification);
+        })
+        .listen('.App\\Events\\TaskStatusChanged', (e: unknown) => {
+          get().addRealtimeNotification(e as AppNotification);
+        })
+        .listen('App\\Events\\TaskStatusChanged', (e: unknown) => {
+          get().addRealtimeNotification(e as AppNotification);
+        });
     }
-
-    // Light background unread check every 6s
-    const pollInterval = setInterval(() => {
-      if (useAuthStore.getState().isAuthenticated) {
-        get().loadUnreadCount();
-      }
-    }, 6000);
-
-    return () => clearInterval(pollInterval);
   },
 
   unsubscribeFromUserChannel: () => {

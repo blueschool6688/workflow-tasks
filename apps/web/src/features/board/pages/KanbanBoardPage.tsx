@@ -141,9 +141,14 @@ export function KanbanBoardPage({ projectKey, sprintId }: KanbanBoardPageProps) 
     fetchBoard();
   }, [fetchBoard]);
 
-  const handleSprintChange = (newSprintId: string) => {
-    setCurrentSprintId(newSprintId);
-    router.push(`/projects/${projectKey}/sprints/${newSprintId}/board`);
+  const handleSprintChange = (newSprintId: string | null) => {
+    if (newSprintId) {
+      setCurrentSprintId(newSprintId);
+      router.push(`/projects/${projectKey}/sprints/${newSprintId}/board`);
+    } else {
+      setCurrentSprintId('');
+      router.push(`/projects/${projectKey}/board`);
+    }
   };
 
   const handleDragStart = (event: DragStartEvent) => {

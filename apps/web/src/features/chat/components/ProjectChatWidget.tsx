@@ -69,6 +69,7 @@ export function ProjectChatWidget() {
     selectedAttachments,
     isSending,
     isUploadingAttachment,
+    socketStatus,
     toggleChat,
     toggleExpand,
     closeChat,
@@ -901,6 +902,7 @@ export function ProjectChatWidget() {
             </div>
 
             <button
+              type="button"
               onClick={handleSend}
               disabled={(!inputContent.trim() && selectedAttachments.length === 0) || isSending}
               className={`p-1.5 px-2.5 rounded-lg flex items-center gap-1 transition-all ${

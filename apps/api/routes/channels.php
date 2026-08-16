@@ -4,21 +4,30 @@ use Illuminate\Support\Facades\Broadcast;
 
 /*
 |--------------------------------------------------------------------------
-| Broadcast Channels
+| Broadcast Channels & Routes
 |--------------------------------------------------------------------------
 |
-| Here you may register all of the event broadcasting channels that your
-| application supports. The given channel authorization callbacks are
-| used to check if an authenticated user can listen to the channel.
+| Register broadcasting authorization routes with Sanctum auth middleware.
 |
 */
+
+Broadcast::routes(['middleware' => ['api', 'auth:sanctum']]);
+Broadcast::routes(['middleware' => ['api', 'auth:sanctum'], 'prefix' => 'api/v1']);
 
 Broadcast::channel('user.{id}', function ($user, $id) {
     return (string) $user->id === (string) $id;
 });
 
 Broadcast::channel('project.{id}', function ($user, $id) {
-    $project = \App\Models\Project::find($id);
+    if (\Illuminate\Support\Str::isUuid($id)) {
+        $project = \App\Models\Project::find($id);
+    } else {
+        $project = \App\Models\Project::where('key', $id)
+            ->orWhere('key', strtoupper($id))
+            ->orWhere('key', strtolower($id))
+            ->first();
+    }
+
     if (!$project) {
         return false;
     }

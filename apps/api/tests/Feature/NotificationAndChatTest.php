@@ -259,4 +259,71 @@ class NotificationAndChatTest extends TestCase
         $res2->assertStatus(200)
             ->assertJsonPath('data.id', $task->id);
     }
+
+    public function test_broadcasting_auth_authenticates_private_channels_with_sanctum(): void
+    {
+        Sanctum::actingAs($this->adminUser, ['*']);
+
+        // 1. User private channel
+        $resUser = $this->post('/api/v1/broadcasting/auth', [
+            'channel_name' => 'private-user.' . $this->adminUser->id,
+            'socket_id' => '1234.5678',
+        ]);
+        $resUser->assertStatus(200);
+
+        // 2. Project UUID private channel
+        $resProjUuid = $this->post('/api/v1/broadcasting/auth', [
+            'channel_name' => 'private-project.' . $this->project->id,
+            'socket_id' => '1234.5678',
+        ]);
+        $resProjUuid->assertStatus(200);
+
+        // 3. Project Key private channel (e.g. CORE-ENG)
+        $resProjKey = $this->post('/api/v1/broadcasting/auth', [
+            'channel_name' => 'private-project.' . $this->project->key,
+            'socket_id' => '1234.5678',
+        ]);
+        $resProjKey->assertStatus(200);
+    }
+
+    public function test_project_message_sent_event_broadcasts_on_both_uuid_and_key_channels(): void
+    {
+        $message = ProjectMessage::create([
+            'project_id' => $this->project->id,
+            'user_id' => $this->adminUser->id,
+            'content' => 'Test event broadcast',
+        ]);
+
+        $event = new \App\Events\ProjectMessageSent($message);
+        $channels = $event->broadcastOn();
+
+        $channelNames = array_map(fn ($ch) => $ch->name, $channels);
+
+        $this->assertContains('private-project.' . $this->project->id, $channelNames);
+        $this->assertContains('private-project.' . $this->project->key, $channelNames);
+    }
+
+    public function test_user_can_send_and_list_messages_using_project_key_slug(): void
+    {
+        Sanctum::actingAs($this->adminUser, ['*']);
+
+        // Send using key
+        $sendRes = $this->postJson("/api/v1/projects/{$this->project->key}/messages", [
+            'content' => 'Tin nhắn gửi qua project key slug!',
+        ]);
+
+        $sendRes->assertStatus(201)
+            ->assertJsonPath('data.content', 'Tin nhắn gửi qua project key slug!');
+
+        // List using key
+        $listRes = $this->getJson("/api/v1/projects/{$this->project->key}/messages");
+        $listRes->assertStatus(200)
+            ->assertJsonStructure(['data', 'members']);
+
+        // Typing using key
+        $typingRes = $this->postJson("/api/v1/projects/{$this->project->key}/typing", [
+            'is_typing' => true,
+        ]);
+        $typingRes->assertStatus(200);
+    }
 }

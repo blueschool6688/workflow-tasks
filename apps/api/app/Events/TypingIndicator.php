@@ -21,9 +21,11 @@ class TypingIndicator implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [
+        $channels = [
             new PrivateChannel('project.' . $this->projectId),
         ];
+
+        return $channels;
     }
 
     public function broadcastAs(): string

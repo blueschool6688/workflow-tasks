@@ -1,31 +1,32 @@
-# Implementation Plan: Real-time Task Status Notifications & Project Team Chatbox
+# Implementation Plan: Pure Real-Time WebSocket Engine (Zero Polling)
 
-## Overview
-Xây dựng hệ sinh thái thông báo thời gian thực (Real-time Notifications) khi chuyển trạng thái Task (bắn notify cho Người được giao / Assignee, Người theo dõi/tạo / Reporter/Consignee, và Quản trị viên / Admins) cùng hệ thống Chatbox Dự án thời gian thực (Project Team Chatbox).
+## Context & Problem Analysis
+- User explicitly identified that WebSocket events were not functioning as pure real-time, and that internal API polling was used as a fallback, which is incorrect.
+- Real-time notifications and project chat messages MUST be pushed instantly via WebSocket events (Laravel Reverb + Laravel Echo/Pusher).
+- Root causes identified:
+  1. Internal polling intervals in `projectChatStore` and `notificationStore` masking socket events.
+  2. Channel authorization for `project.{id}` in `routes/channels.php` only checked UUID `find()`, failing when frontend subscribed with project key (e.g., `CORE-ENG`).
+  3. Broadcast events (`ProjectMessageSent`, `ProjectMessagePinned`, `TypingIndicator`) only published on UUID channel, whereas clients may subscribe via key or UUID.
+  4. Event listeners in Echo need to bind both prefixed (`.EventName`) and fully-qualified / unprefixed event names to ensure 100% reception across all Pusher/Reverb protocols.
 
-## Task List
+---
 
-### Phase 1: Database Architecture & Backend Events
-- [x] Task 1.1: Tạo migration và Model cho `Notification` (`notifications` table).
-- [x] Task 1.2: Tạo migration và Model cho `ProjectMessage` (`project_messages` table).
-- [x] Task 1.3: Tạo các Event phát sóng `TaskStatusChanged` và `ProjectMessageSent`, `TypingIndicator`.
-- [x] Task 1.4: Tạo `NotificationController` và `ProjectChatController` kèm định tuyến API.
-- [x] Task 1.5: Tích hợp logic tự động tạo thông báo và kích hoạt event trong `TaskController` qua `NotificationService`.
+## Phase Breakdown
 
-### Phase 2: Real-time Client Engine & Stores (Frontend)
-- [x] Task 2.1: Xây dựng service `echoService.ts` quản lý kết nối Laravel Echo & Reverb WebSocket.
-- [x] Task 2.2: Xây dựng `notificationStore.ts` quản lý state thông báo và nhận notify realtime + Sonner toast.
-- [x] Task 2.3: Xây dựng `projectChatStore.ts` quản lý state chatbox và tin nhắn realtime, typing indicator.
-- [x] Task 2.4: Xây dựng `RealtimeProvider.tsx` quản lý vòng đời socket và kích hoạt mở nhanh TaskDetailModal.
+### Phase 1: Backend Broadcasting & Channel Authorization Hardening
+- [ ] 1.1 Update `routes/channels.php` so `project.{id}` channel authorizes both UUID and project key (`Project::where('key', $id)`).
+- [ ] 1.2 Update `ProjectMessageSent`, `ProjectMessagePinned`, and `TypingIndicator` to broadcast on both UUID and Project Key private channels.
+- [ ] 1.3 Update `ProjectChatController` and `TaskController` to ensure events broadcast immediately with `ShouldBroadcastNow`.
 
-### Phase 3: Notification Center UI
-- [x] Task 3.1: Nâng cấp `NotificationBell.tsx` với badge đếm số, dropdown phân tab (Tất cả, Chưa đọc, Công việc), visual status badge.
-- [x] Task 3.2: Tích hợp click thông báo mở trực tiếp `TaskDetailModal` 1000px.
+### Phase 2: Elimination of All Polling & Pure Real-Time Frontend Stores
+- [ ] 2.1 Remove all `setInterval`, `startFallbackPolling`, and background poll timers from `projectChatStore.ts`.
+- [ ] 2.2 Remove all `setInterval` and unread count polling from `notificationStore.ts`.
+- [ ] 2.3 Ensure `RealtimeProvider.tsx` establishes persistent socket connection on user login and subscribes to `user.{id}`.
+- [ ] 2.4 In `projectChatStore.ts`, subscribe to both UUID and project key channels upon opening chat or switching projects, and listen to all event variations (`.ProjectMessageSent`, `ProjectMessageSent`, etc.).
+- [ ] 2.5 In `notificationStore.ts`, when `TaskStatusChanged` event arrives, immediately push to store, increment unread counter, and display dynamic toast notification with click-to-open task detail.
 
-### Phase 4: Project Team Chatbox Widget (Taste Design)
-- [x] Task 4.1: Xây dựng `ProjectChatWidget.tsx` với giao diện Glassmorphism, danh sách thành viên online, soạn tin nhắn, quick emoji picker, reply thread, typing indicator.
-- [x] Task 4.2: Tích hợp Chatbox vào `AppHeader.tsx` và `AppLayout.tsx`.
-
-### Phase 5: Automated Testing & Verification
-- [x] Task 5.1: Viết test tự động PHPUnit `NotificationAndChatTest.php`.
-- [x] Task 5.2: Chạy kiểm thử xác nhận 100% test suite pass (38/38 tests passed, 93 assertions).
+### Phase 3: Automated Testing & End-to-End Verification (TDD)
+- [ ] 3.1 Write automated PHPUnit tests in `NotificationAndChatTest.php` verifying:
+  - Channel authorization with project key and UUID.
+  - Immediate event broadcast dispatch with correct payload and channels.
+- [ ] 3.2 Verify real-time message sending and reception across client instances.

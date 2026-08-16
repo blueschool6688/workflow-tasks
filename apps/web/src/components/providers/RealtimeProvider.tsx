@@ -40,7 +40,7 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
         status_id: '',
         priority: 'medium',
         order: 0,
-      } as KanbanTask)
+      } as unknown as KanbanTask)
     : null;
 
   return (
