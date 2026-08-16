@@ -150,7 +150,14 @@ class TaskController extends Controller
             'labels'           => 'nullable|array',
         ]);
 
+        $oldValues = $task->only(array_keys($validated));
         $task->update($validated);
+
+        activity('task_workflow')
+            ->performedOn($task)
+            ->causedBy($request->user())
+            ->withProperties(['old' => $oldValues, 'attributes' => $task->only(array_keys($validated))])
+            ->log('Đã cập nhật thông tin nhiệm vụ');
 
         return response()->json(['data' => new TaskResource($task->fresh()->load(['status', 'assignee', 'reporter', 'sprint', 'epic']))]);
     }
@@ -158,6 +165,11 @@ class TaskController extends Controller
     public function destroy(Task $task): JsonResponse
     {
         $this->authorize('delete', $task);
+
+        activity('task_workflow')
+            ->performedOn($task)
+            ->causedBy(request()->user())
+            ->log('Đã xóa nhiệm vụ');
 
         $task->delete();
 
@@ -173,7 +185,15 @@ class TaskController extends Controller
             'status_id' => 'required|uuid|exists:workflow_statuses,id',
         ]);
 
+        $oldStatusName = $task->status?->name ?? 'To Do';
         $task->update(['status_id' => $request->input('status_id')]);
+        $newStatusName = $task->fresh()->status?->name ?? 'Mới';
+
+        activity('task_workflow')
+            ->performedOn($task)
+            ->causedBy($request->user())
+            ->withProperties(['old_status' => $oldStatusName, 'new_status' => $newStatusName])
+            ->log("Đã chuyển trạng thái từ '{$oldStatusName}' sang '{$newStatusName}'");
 
         return response()->json(['data' => new TaskResource($task->fresh()->load('status'))]);
     }

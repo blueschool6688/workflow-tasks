@@ -5,10 +5,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class Task extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasUuids, LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->useLogName('task_workflow')
+            ->setDescriptionForEvent(fn(string $eventName) => match($eventName) {
+                'created' => 'Đã tạo nhiệm vụ',
+                'updated' => 'Đã cập nhật thông tin nhiệm vụ',
+                'deleted' => 'Đã xóa nhiệm vụ',
+                default   => "Thao tác {$eventName} trên nhiệm vụ",
+            });
+    }
 
     protected $fillable = [
         'project_id',

@@ -37,6 +37,11 @@ class TaskCommentController extends Controller
             'body'    => $body,
         ]);
 
+        activity('task_workflow')
+            ->performedOn($task)
+            ->causedBy($request->user())
+            ->log('Đã đăng bình luận mới');
+
         return response()->json(['data' => new TaskCommentResource($comment->load('user'))], 201);
     }
 

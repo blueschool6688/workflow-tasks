@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Api\V1\TaskWorkLogResource;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskWorkLog;
@@ -50,6 +51,12 @@ class TaskWorkLogController extends Controller
         ]));
 
         $task->increment('time_spent_minutes', $validated['minutes_logged']);
+
+        activity('task_workflow')
+            ->performedOn($task)
+            ->causedBy($request->user())
+            ->withProperties(['minutes_logged' => $validated['minutes_logged']])
+            ->log("Đã ghi nhận {$validated['minutes_logged']} phút làm việc");
 
         return response()->json(['data' => new TaskWorkLogResource($log->load('user'))], 201);
     }

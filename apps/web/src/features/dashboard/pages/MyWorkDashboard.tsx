@@ -211,7 +211,7 @@ export function MyWorkDashboard() {
               items={[
                 {
                   color: 'green',
-                  children: (
+                  content: (
                     <div>
                       <p className="text-xs font-semibold m-0 text-zinc-800 dark:text-zinc-200">
                         Bạn đã hoàn thành công việc CORE-104
@@ -222,7 +222,7 @@ export function MyWorkDashboard() {
                 },
                 {
                   color: 'blue',
-                  children: (
+                  content: (
                     <div>
                       <p className="text-xs font-semibold m-0 text-zinc-800 dark:text-zinc-200">
                         Nguyễn Văn A đã gán CORE-102 cho bạn
@@ -233,7 +233,7 @@ export function MyWorkDashboard() {
                 },
                 {
                   color: 'orange',
-                  children: (
+                  content: (
                     <div>
                       <p className="text-xs font-semibold m-0 text-zinc-800 dark:text-zinc-200">
                         Trần Thị B đã thêm bình luận vào CORE-101

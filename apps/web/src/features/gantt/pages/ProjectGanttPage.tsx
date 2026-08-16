@@ -189,7 +189,7 @@ export function ProjectGanttPage({ projectKey }: { projectKey: string }) {
           items={[
             {
               color: 'green',
-              children: (
+              content: (
                 <div>
                   <h4 className="font-bold text-sm m-0">Cột mốc 1: Nền tảng Monorepo & Backend Core</h4>
                   <p className="text-xs text-zinc-500 m-0">
@@ -200,7 +200,7 @@ export function ProjectGanttPage({ projectKey }: { projectKey: string }) {
             },
             {
               color: 'blue',
-              children: (
+              content: (
                 <div>
                   <h4 className="font-bold text-sm m-0">Cột mốc 2: Ant Design UI & Feature Modules</h4>
                   <p className="text-xs text-zinc-500 m-0">
@@ -211,7 +211,7 @@ export function ProjectGanttPage({ projectKey }: { projectKey: string }) {
             },
             {
               color: 'gray',
-              children: (
+              content: (
                 <div>
                   <h4 className="font-bold text-sm m-0">Cột mốc 3: Phân quyền LDAP & Production Release</h4>
                   <p className="text-xs text-zinc-500 m-0">
