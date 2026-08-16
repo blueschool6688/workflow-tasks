@@ -2,10 +2,11 @@
 
 import * as React from 'react';
 import { useParams } from 'next/navigation';
-import { Card, Form, Input, Select, Button, Switch, Tag, message } from 'antd';
+import { Card, Form, Input, Select, Button, Switch, Tag, App } from 'antd';
 import { SettingOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 
 export default function ProjectSettingsPage() {
+  const { message } = App.useApp();
   const params = useParams();
   const projectKey = (params?.projectKey as string)?.toUpperCase() || 'CORE-ENG';
   const [form] = Form.useForm();

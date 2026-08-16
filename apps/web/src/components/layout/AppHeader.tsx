@@ -85,7 +85,6 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
 
   return (
     <header className="h-14 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-[#09090b]/80 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 shrink-0">
-      {/* Left Mobile Menu Button + Breadcrumbs */}
       <div className="flex items-center gap-2 min-w-0">
         <Button
           type="text"
@@ -98,10 +97,7 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
           <Breadcrumb items={breadcrumbItems} className="text-xs" />
         </div>
       </div>
-
-      {/* Right Controls */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Global Search Input */}
         <Input
           prefix={<SearchOutlined className="text-zinc-400" />}
           placeholder="Tìm kiếm công việc, dự án..."
@@ -109,10 +105,7 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
           className="hidden md:flex w-56 lg:w-64 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-900 border-none"
         />
 
-        {/* Notifications */}
         <NotificationBell />
-
-        {/* Theme Switcher */}
         <Switch
           checked={isDark}
           onChange={(checked) => setTheme(checked ? 'dark' : 'light')}
@@ -121,11 +114,10 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
           className="bg-zinc-300 dark:bg-zinc-700"
         />
 
-        {/* User Profile Menu */}
         <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
           <Avatar
             className="cursor-pointer bg-indigo-600 font-bold hover:opacity-90 transition-opacity"
-            size={32}
+            size={40}
           >
             {user?.name ? user.name.substring(0, 1).toUpperCase() : 'U'}
           </Avatar>

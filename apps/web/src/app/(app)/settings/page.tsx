@@ -1,11 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { Card, Tabs, Form, Input, Button, Avatar, Switch, Tag, message } from 'antd';
+import { Card, Tabs, Form, Input, Button, Avatar, Switch, Tag, App } from 'antd';
 import { UserOutlined, LockOutlined, SettingOutlined, BellOutlined } from '@ant-design/icons';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function SettingsPage() {
+  const { message } = App.useApp();
   const { user, updateUser } = useAuthStore();
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();

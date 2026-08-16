@@ -8,13 +8,13 @@ import {
   Button,
   Select,
   Switch,
-  message,
   Divider,
   Tabs,
   Table,
   Tag,
   Modal,
   Popconfirm,
+  App,
 } from 'antd';
 import {
   SettingOutlined,
@@ -27,6 +27,7 @@ import {
 import { useParams } from 'next/navigation';
 
 export default function ProjectSettingsPage() {
+  const { message } = App.useApp();
   const params = useParams();
   const projectKey = (params?.projectKey as string) || 'CORE-ENG';
   const pKey = projectKey.toUpperCase();

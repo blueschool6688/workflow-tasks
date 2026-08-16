@@ -13,7 +13,7 @@ import {
   Row,
   Col,
   Space,
-  message,
+  App,
 } from 'antd';
 import {
   PlusOutlined,
@@ -24,6 +24,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { createTaskApi, TaskDetail } from '../api/taskApi';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export function CreateTaskModal({
   projectKey,
   onSuccess,
 }: CreateTaskModalProps) {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -231,7 +233,10 @@ export function CreateTaskModal({
 
         {/* Description */}
         <Form.Item label="Mô tả chi tiết" name="description">
-          <Input.TextArea rows={3} placeholder="Mô tả các yêu cầu cần hoàn thành..." />
+          <RichTextEditor
+            placeholder="Mô tả các yêu cầu cần hoàn thành, checklist nghiệm thu..."
+            minRows={4}
+          />
         </Form.Item>
 
         <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">

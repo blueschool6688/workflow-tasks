@@ -16,10 +16,15 @@ import { KanbanCard } from '../components/KanbanCard';
 import { BoardFilterBar } from '../components/BoardFilterBar';
 import { TaskDetailModal } from '@/features/tasks/components/TaskDetailModal';
 import { CreateTaskModal } from '@/features/tasks/components/CreateTaskModal';
-import { Spin, Button, message } from 'antd';
+import { Spin, Button, App } from 'antd';
 import { AppstoreOutlined, PlusOutlined } from '@ant-design/icons';
+import { useSearchParams } from 'next/navigation';
 
 export function KanbanBoardPage({ projectKey }: { projectKey: string }) {
+  const { message } = App.useApp();
+  const searchParams = useSearchParams();
+  const sprintIdParam = searchParams.get('sprintId');
+
   const [columns, setColumns] = React.useState<KanbanColumnData[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [activeTask, setActiveTask] = React.useState<KanbanTask | null>(null);
@@ -32,7 +37,13 @@ export function KanbanBoardPage({ projectKey }: { projectKey: string }) {
   const [selectedStatus, setSelectedStatus] = React.useState<string | null>(null);
   const [selectedAssignee, setSelectedAssignee] = React.useState<string | null>(null);
   const [selectedTester, setSelectedTester] = React.useState<string | null>(null);
-  const [selectedSprint, setSelectedSprint] = React.useState<string | null>(null);
+  const [selectedSprint, setSelectedSprint] = React.useState<string | null>(sprintIdParam);
+
+  React.useEffect(() => {
+    if (sprintIdParam) {
+      setSelectedSprint(sprintIdParam);
+    }
+  }, [sprintIdParam]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

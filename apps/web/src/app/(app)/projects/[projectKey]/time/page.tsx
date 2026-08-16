@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { Card, Table, Statistic, Button, Tag, Modal, Form, InputNumber, Input, message, Row, Col } from 'antd';
+import { Card, Table, Statistic, Button, Tag, Modal, Form, InputNumber, Input, Row, Col, App } from 'antd';
 import { ClockCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/axios';
 
 export default function ProjectTimeTrackingPage() {
+  const { message } = App.useApp();
   const params = useParams();
   const projectKey = (params?.projectKey as string) || 'CORE-ENG';
   const pKey = projectKey.toUpperCase();

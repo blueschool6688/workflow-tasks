@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useParams } from 'next/navigation';
-import { Card, Table, Button, Modal, Form, Input, InputNumber, DatePicker, Statistic, Row, Col, Tag, message } from 'antd';
+import { Card, Table, Button, Modal, Form, Input, InputNumber, DatePicker, Statistic, Row, Col, Tag, App } from 'antd';
 import { ClockCircleOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -17,6 +17,7 @@ interface WorkLogItem {
 }
 
 export default function TimeTrackingPage() {
+  const { message } = App.useApp();
   const params = useParams();
   const projectKey = (params?.projectKey as string)?.toUpperCase() || 'CORE-ENG';
   const [isModalOpen, setIsModalOpen] = React.useState(false);

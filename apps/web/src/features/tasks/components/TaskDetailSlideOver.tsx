@@ -16,9 +16,9 @@ import {
   Empty,
   Popconfirm,
   Progress,
-  message,
   Checkbox,
   Space,
+  App,
 } from 'antd';
 import {
   UserOutlined,
@@ -50,6 +50,7 @@ import {
   TaskAttachmentItem,
 } from '../api/taskApi';
 import { KanbanTask } from '../../board/api/boardApi';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 
 interface TaskDetailSlideOverProps {
   task: KanbanTask | null;
@@ -64,6 +65,7 @@ export function TaskDetailSlideOver({
   onTaskUpdated,
   onTaskDeleted,
 }: TaskDetailSlideOverProps) {
+  const { message } = App.useApp();
   const [detail, setDetail] = React.useState<TaskDetail | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);

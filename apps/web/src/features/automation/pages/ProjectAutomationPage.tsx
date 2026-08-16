@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { Card, Switch, Tag, Button, message } from 'antd';
+import { Card, Switch, Tag, Button, App } from 'antd';
 import { ThunderboltOutlined, PlusOutlined } from '@ant-design/icons';
 
 export function ProjectAutomationPage({ projectKey }: { projectKey: string }) {
+  const { message } = App.useApp();
   const pKey = projectKey.toUpperCase();
 
   const [rules, setRules] = React.useState([

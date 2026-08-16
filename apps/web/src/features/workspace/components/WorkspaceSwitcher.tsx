@@ -1,13 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { Dropdown, Button, Avatar, Modal, Form, Input, message } from 'antd';
+import { Dropdown, Button, Avatar, Modal, Form, Input, App } from 'antd';
 import type { MenuProps } from 'antd';
 import { AppstoreOutlined, CheckOutlined, PlusOutlined, DownOutlined } from '@ant-design/icons';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/lib/axios';
 
 export function WorkspaceSwitcher() {
+  const { message } = App.useApp();
   const workspaces = useAuthStore((state) => state.workspaces);
   const user = useAuthStore((state) => state.user);
   const setCurrentWorkspaceId = useAuthStore((state) => state.setCurrentWorkspaceId);

@@ -139,3 +139,46 @@ export async function getTaskActivityApi(taskIdOrNumber: string): Promise<any[]>
     return [];
   }
 }
+
+export interface TaskWorkLogItem {
+  id: string;
+  task_id: string;
+  user_id: number | string;
+  user?: {
+    id: number | string;
+    name: string;
+    avatar_url?: string;
+  };
+  minutes_logged: number;
+  description?: string;
+  logged_at: string;
+  created_at?: string;
+}
+
+export async function getTaskWorkLogsApi(taskIdOrNumber: string): Promise<TaskWorkLogItem[]> {
+  try {
+    const res = await api.get<{ data: TaskWorkLogItem[] }>(`/tasks/${taskIdOrNumber}/worklogs`);
+    return res.data.data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function postTaskWorkLogApi(
+  taskIdOrNumber: string,
+  minutesLogged: number,
+  description?: string,
+  loggedAt?: string
+): Promise<TaskWorkLogItem> {
+  const res = await api.post<{ data: TaskWorkLogItem }>(`/tasks/${taskIdOrNumber}/worklogs`, {
+    minutes_logged: minutesLogged,
+    description,
+    logged_at: loggedAt,
+  });
+  return res.data.data;
+}
+
+export async function deleteTaskWorkLogApi(taskIdOrNumber: string, workLogId: string): Promise<void> {
+  await api.delete(`/tasks/${taskIdOrNumber}/worklogs/${workLogId}`);
+}
+

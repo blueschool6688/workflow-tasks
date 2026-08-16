@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
-import { ConfigProvider, theme } from 'antd';
+import { ConfigProvider, theme, App } from 'antd';
 import { useTheme } from 'next-themes';
 import viVN from 'antd/locale/vi_VN';
 
@@ -42,7 +42,9 @@ export function AntdProvider({ children }: { children: React.ReactNode }) {
           },
         }}
       >
-        {children}
+        <App>
+          {children}
+        </App>
       </ConfigProvider>
     </AntdRegistry>
   );

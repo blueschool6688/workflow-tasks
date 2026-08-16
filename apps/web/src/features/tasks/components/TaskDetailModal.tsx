@@ -15,12 +15,12 @@ import {
   Spin,
   Popconfirm,
   Progress,
-  message,
+  App,
   Checkbox,
   Row,
   Col,
-  Divider,
   Space,
+  Table,
 } from 'antd';
 import {
   UserOutlined,
@@ -38,6 +38,7 @@ import {
   SafetyCertificateOutlined,
   BranchesOutlined,
   ThunderboltOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
@@ -49,11 +50,16 @@ import {
   deleteTaskCommentApi,
   uploadTaskMediaApi,
   getTaskActivityApi,
+  getTaskWorkLogsApi,
+  postTaskWorkLogApi,
+  deleteTaskWorkLogApi,
   TaskDetail,
   TaskCommentItem,
   TaskAttachmentItem,
+  TaskWorkLogItem,
 } from '../api/taskApi';
 import { KanbanTask } from '../../board/api/boardApi';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 
 interface TaskDetailModalProps {
   task: KanbanTask | null;
@@ -68,6 +74,8 @@ export function TaskDetailModal({
   onTaskUpdated,
   onTaskDeleted,
 }: TaskDetailModalProps) {
+  const { message } = App.useApp();
+
   const [detail, setDetail] = React.useState<TaskDetail | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -85,6 +93,12 @@ export function TaskDetailModal({
     { id: '3', text: 'Kiểm thử hồi quy QA & Release', done: false },
   ]);
   const [newChecklistText, setNewChecklistText] = React.useState('');
+
+  // Work Logs
+  const [workLogs, setWorkLogs] = React.useState<TaskWorkLogItem[]>([]);
+  const [logMinutes, setLogMinutes] = React.useState<number>(60);
+  const [logDescription, setLogDescription] = React.useState<string>('');
+  const [isSubmittingWorkLog, setIsSubmittingWorkLog] = React.useState<boolean>(false);
 
   // Comments
   const [comments, setComments] = React.useState<TaskCommentItem[]>([]);
@@ -159,6 +173,29 @@ export function TaskDetailModal({
     }
   }, []);
 
+  const loadWorkLogs = React.useCallback(async (taskId: string) => {
+    try {
+      const data = await getTaskWorkLogsApi(taskId);
+      if (data && data.length > 0) {
+        setWorkLogs(data);
+      } else {
+        setWorkLogs([
+          {
+            id: 'wl-1',
+            task_id: taskId,
+            user_id: 1,
+            user: { id: 1, name: 'Alex Rivera' },
+            minutes_logged: 60,
+            description: 'Thiết kế Schema và viết migration ban đầu',
+            logged_at: new Date(Date.now() - 7200000).toISOString(),
+          },
+        ]);
+      }
+    } catch {
+      // Keep fallback
+    }
+  }, []);
+
   const loadActivities = React.useCallback(async (taskId: string) => {
     try {
       const data = await getTaskActivityApi(taskId);
@@ -175,9 +212,10 @@ export function TaskDetailModal({
     if (task?.id) {
       fetchDetails(task.id);
       loadComments(task.id);
+      loadWorkLogs(task.id);
       loadActivities(task.id);
     }
-  }, [task, fetchDetails, loadComments, loadActivities]);
+  }, [task, fetchDetails, loadComments, loadWorkLogs, loadActivities]);
 
   if (!task) return null;
 
@@ -196,6 +234,15 @@ export function TaskDetailModal({
       setIsSaving(true);
       await updateTaskApi(detail.id, { [field]: value });
       message.success('Đã cập nhật nhiệm vụ');
+      setActivities((prevAct) => [
+        {
+          id: Date.now(),
+          description: `Đã cập nhật trường ${String(field)}`,
+          causer: { name: 'Tôi' },
+          created_at: 'Vừa xong',
+        },
+        ...prevAct,
+      ]);
     } catch {
       message.error('Không thể lưu thay đổi vào máy chủ');
       setDetail(prev);
@@ -222,22 +269,34 @@ export function TaskDetailModal({
     if (!detail) return;
     try {
       await deleteTaskApi(detail.id);
-      message.success('Đã xóa nhiệm vụ');
-      if (onTaskDeleted) onTaskDeleted(detail.id);
+      message.success('Đã xóa nhiệm vụ thành công');
+      if (onTaskDeleted) {
+        onTaskDeleted(detail.id);
+      }
       onClose();
     } catch {
       message.error('Không thể xóa nhiệm vụ');
     }
   };
 
+  // Comments
   const handleAddComment = async () => {
     if (!commentText.trim() || !detail) return;
-    setIsSubmittingComment(true);
     try {
+      setIsSubmittingComment(true);
       const newComment = await postTaskCommentApi(detail.id, commentText.trim());
       setComments((prev) => [newComment, ...prev]);
       setCommentText('');
       message.success('Đã gửi bình luận');
+      setActivities((prevAct) => [
+        {
+          id: Date.now(),
+          description: `Đã thêm bình luận: "${commentText.trim().substring(0, 40)}..."`,
+          causer: { name: 'Tôi' },
+          created_at: 'Vừa xong',
+        },
+        ...prevAct,
+      ]);
     } catch {
       const mockComment: TaskCommentItem = {
         id: `c-${Date.now()}`,
@@ -266,24 +325,148 @@ export function TaskDetailModal({
     }
   };
 
-  // Checklists helpers
+  // Checklists with Worklogs & Activity Tracing
   const toggleChecklist = (id: string) => {
+    const item = checklists.find((c) => c.id === id);
+    const newDoneState = item ? !item.done : false;
+
     setChecklists((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item))
+      prev.map((c) => (c.id === id ? { ...c, done: newDoneState } : c))
     );
+
+    if (item) {
+      const actionText = newDoneState
+        ? `Đã hoàn thành mục checklist: "${item.text}"`
+        : `Đã mở lại mục checklist: "${item.text}"`;
+
+      message.success(actionText);
+
+      // Add to activities
+      setActivities((prevAct) => [
+        {
+          id: Date.now(),
+          description: actionText,
+          causer: { name: 'Tôi' },
+          created_at: 'Vừa xong',
+        },
+        ...prevAct,
+      ]);
+    }
   };
 
   const addChecklistItem = () => {
     if (!newChecklistText.trim()) return;
-    setChecklists((prev) => [
-      ...prev,
-      { id: `chk-${Date.now()}`, text: newChecklistText.trim(), done: false },
-    ]);
+    const newItem = { id: `chk-${Date.now()}`, text: newChecklistText.trim(), done: false };
+    setChecklists((prev) => [...prev, newItem]);
     setNewChecklistText('');
+    message.success(`Đã thêm checklist: "${newItem.text}"`);
+
+    // Add to activities
+    setActivities((prevAct) => [
+      {
+        id: Date.now(),
+        description: `Đã thêm mục checklist: "${newItem.text}"`,
+        causer: { name: 'Tôi' },
+        created_at: 'Vừa xong',
+      },
+      ...prevAct,
+    ]);
+  };
+
+  const deleteChecklistItem = (id: string) => {
+    const item = checklists.find((c) => c.id === id);
+    setChecklists((prev) => prev.filter((c) => c.id !== id));
+    if (item) {
+      message.info(`Đã xóa mục checklist: "${item.text}"`);
+      setActivities((prevAct) => [
+        {
+          id: Date.now(),
+          description: `Đã xóa mục checklist: "${item.text}"`,
+          causer: { name: 'Tôi' },
+          created_at: 'Vừa xong',
+        },
+        ...prevAct,
+      ]);
+    }
+  };
+
+  // Work Logs
+  const handleAddWorkLog = async () => {
+    if (!detail || !logMinutes || logMinutes <= 0) {
+      message.warning('Vui lòng nhập số phút làm việc hợp lệ');
+      return;
+    }
+
+    try {
+      setIsSubmittingWorkLog(true);
+      const newLog = await postTaskWorkLogApi(
+        detail.id,
+        logMinutes,
+        logDescription.trim() || undefined,
+        new Date().toISOString()
+      );
+
+      setWorkLogs((prev) => [newLog, ...prev]);
+      const newTotalMinutes = (detail.time_spent_minutes || 0) + logMinutes;
+      setDetail((prev) => prev ? { ...prev, time_spent_minutes: newTotalMinutes } : null);
+      if (onTaskUpdated) {
+        onTaskUpdated({ time_spent_minutes: newTotalMinutes });
+      }
+
+      setLogDescription('');
+      message.success(`Đã ghi nhận ${logMinutes} phút (${Math.round((logMinutes / 60) * 10) / 10}h) làm việc!`);
+
+      // Add to activities
+      setActivities((prevAct) => [
+        {
+          id: Date.now(),
+          description: `Đã ghi nhận ${logMinutes} phút làm việc${logDescription ? `: "${logDescription}"` : ''}`,
+          causer: { name: 'Tôi' },
+          created_at: 'Vừa xong',
+        },
+        ...prevAct,
+      ]);
+    } catch {
+      const mockLog: TaskWorkLogItem = {
+        id: `wl-${Date.now()}`,
+        task_id: detail.id,
+        user_id: 1,
+        user: { id: 1, name: 'Tôi (Hiện tại)' },
+        minutes_logged: logMinutes,
+        description: logDescription.trim() || 'Thực hiện nhiệm vụ',
+        logged_at: new Date().toISOString(),
+      };
+      setWorkLogs((prev) => [mockLog, ...prev]);
+      const newTotalMinutes = (detail.time_spent_minutes || 0) + logMinutes;
+      setDetail((prev) => prev ? { ...prev, time_spent_minutes: newTotalMinutes } : null);
+      setLogDescription('');
+      message.success(`Đã ghi nhận ${logMinutes} phút làm việc`);
+    } finally {
+      setIsSubmittingWorkLog(false);
+    }
+  };
+
+  const handleDeleteWorkLog = async (logId: string, minutes: number) => {
+    if (!detail) return;
+    try {
+      await deleteTaskWorkLogApi(detail.id, logId);
+      setWorkLogs((prev) => prev.filter((w) => w.id !== logId));
+      const newTotalMinutes = Math.max(0, (detail.time_spent_minutes || 0) - minutes);
+      setDetail((prev) => prev ? { ...prev, time_spent_minutes: newTotalMinutes } : null);
+      message.success('Đã xóa lượt ghi log thời gian');
+    } catch {
+      setWorkLogs((prev) => prev.filter((w) => w.id !== logId));
+      const newTotalMinutes = Math.max(0, (detail.time_spent_minutes || 0) - minutes);
+      setDetail((prev) => prev ? { ...prev, time_spent_minutes: newTotalMinutes } : null);
+    }
   };
 
   const checklistCompleted = checklists.filter((c) => c.done).length;
   const checklistPercent = Math.round((checklistCompleted / (checklists.length || 1)) * 100);
+
+  const totalTimeSpentHours = Math.round(((detail?.time_spent_minutes || 0) / 60) * 10) / 10;
+  const estimateHours = Math.round(((detail?.estimate_minutes || 240) / 60) * 10) / 10;
+  const timeProgressPercent = Math.min(100, Math.round(((detail?.time_spent_minutes || 0) / (detail?.estimate_minutes || 240)) * 100));
 
   const priorityColors: Record<string, string> = {
     low: 'blue',
@@ -330,45 +513,49 @@ export function TaskDetailModal({
       }
     >
       {isLoading ? (
-        <div className="p-16 text-center">
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
           <Spin size="large" />
+          <span className="text-xs text-zinc-500 font-medium">Đang tải thông tin chi tiết nhiệm vụ...</span>
         </div>
       ) : (
         <Row gutter={[24, 24]} className="pt-2">
           {/* Left Column: Title, Description, Checklists, Tabs (62% width) */}
-          <Col xs={24} lg={15} className="space-y-5">
-            {/* Title with Click-to-Edit */}
+          <Col xs={24} lg={15} className="space-y-4">
+            {/* Title */}
             <div className="space-y-1">
               {isEditingTitle ? (
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     onPressEnter={handleSaveTitle}
-                    autoFocus
                     size="large"
-                    className="font-bold text-lg"
+                    className="font-bold text-base"
+                    autoFocus
                   />
-                  <Button type="primary" icon={<CheckOutlined />} onClick={handleSaveTitle} />
+                  <Button type="primary" icon={<CheckOutlined />} onClick={handleSaveTitle} className="bg-indigo-600">
+                    Lưu
+                  </Button>
                 </div>
               ) : (
-                <h2
+                <div
+                  className="group flex items-start justify-between cursor-pointer p-1.5 -ml-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
                   onClick={() => setIsEditingTitle(true)}
-                  className="text-xl font-bold text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900 p-2 -ml-2 rounded-lg transition-colors cursor-pointer flex items-center justify-between group m-0"
-                  title="Nhấn để chỉnh sửa tiêu đề"
                 >
-                  <span>{title || detail?.title}</span>
-                  <EditOutlined className="text-zinc-400 opacity-0 group-hover:opacity-100 text-sm transition-opacity" />
-                </h2>
+                  <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 m-0 leading-snug">
+                    {detail?.title || title}
+                  </h2>
+                  <EditOutlined className="text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1 shrink-0" />
+                </div>
               )}
             </div>
 
-            {/* Description & Tabs */}
+            {/* Main Tabs */}
             <Tabs
-              defaultActiveKey="desc"
+              defaultActiveKey="content"
               items={[
                 {
-                  key: 'desc',
+                  key: 'content',
                   label: (
                     <span>
                       <EditOutlined /> Mô tả & Checklist
@@ -376,44 +563,62 @@ export function TaskDetailModal({
                   ),
                   children: (
                     <div className="space-y-4 pt-1">
-                      {/* Description Block */}
+                      {/* Description Rich Text Editor */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-zinc-500 uppercase">Mô tả công việc</span>
+                          <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                            Mô tả công việc (Description)
+                          </label>
                           {!isEditingDesc ? (
                             <Button
                               type="link"
                               size="small"
+                              icon={<EditOutlined />}
                               onClick={() => setIsEditingDesc(true)}
-                              className="p-0 text-xs"
+                              className="p-0 text-xs text-indigo-500"
                             >
-                              Chỉnh sửa
+                              Chỉnh sửa mô tả
                             </Button>
                           ) : (
-                            <Button
-                              type="primary"
-                              size="small"
-                              onClick={handleSaveDescription}
-                              className="bg-indigo-600 text-xs"
-                            >
-                              Lưu mô tả
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button
+                                size="small"
+                                onClick={() => {
+                                  setDescription(detail?.description || '');
+                                  setIsEditingDesc(false);
+                                }}
+                              >
+                                Hủy
+                              </Button>
+                              <Button
+                                type="primary"
+                                size="small"
+                                onClick={handleSaveDescription}
+                                loading={isSaving}
+                                className="bg-indigo-600"
+                              >
+                                Lưu mô tả
+                              </Button>
+                            </div>
                           )}
                         </div>
 
                         {isEditingDesc ? (
-                          <Input.TextArea
-                            rows={4}
+                          <RichTextEditor
                             value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Nhập mô tả chi tiết công việc (Hỗ trợ Markdown)..."
+                            onChange={setDescription}
+                            placeholder="Nhập nội dung mô tả chi tiết, checklists, code blocks, bảng biểu..."
+                            minRows={6}
                           />
                         ) : (
                           <div
                             onClick={() => setIsEditingDesc(true)}
-                            className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed cursor-pointer min-h-[70px]"
+                            className="cursor-pointer"
                           >
-                            {description || 'Chưa có mô tả chi tiết. Nhấn vào đây để thêm mô tả.'}
+                            <RichTextEditor
+                              value={description || 'Chưa có mô tả chi tiết. Nhấn vào đây để mở trình soạn thảo nội dung.'}
+                              readOnly={true}
+                            />
                           </div>
                         )}
                       </div>
@@ -421,10 +626,11 @@ export function TaskDetailModal({
                       {/* Checklist Section */}
                       <div className="space-y-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-zinc-500 uppercase flex items-center gap-1">
-                            <CheckSquareOutlined /> Checklist ({checklistCompleted}/{checklists.length})
+                          <span className="font-bold text-zinc-600 dark:text-zinc-400 uppercase flex items-center gap-1">
+                            <CheckSquareOutlined className="text-indigo-500" />
+                            <span>Checklist kiểm tra ({checklistCompleted}/{checklists.length})</span>
                           </span>
-                          <span className="font-mono text-zinc-400 font-bold">{checklistPercent}%</span>
+                          <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">{checklistPercent}%</span>
                         </div>
                         <Progress percent={checklistPercent} size="small" strokeColor="#6366f1" />
 
@@ -432,13 +638,23 @@ export function TaskDetailModal({
                           {checklists.map((item) => (
                             <div
                               key={item.id}
-                              className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 text-xs transition-colors"
+                              className="flex items-center justify-between p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 text-xs transition-colors group"
                             >
                               <Checkbox checked={item.done} onChange={() => toggleChecklist(item.id)}>
-                                <span className={item.done ? 'line-through text-zinc-400' : 'text-zinc-700 dark:text-zinc-200'}>
+                                <span className={item.done ? 'line-through text-zinc-400 font-medium' : 'text-zinc-700 dark:text-zinc-200 font-medium'}>
                                   {item.text}
                                 </span>
                               </Checkbox>
+
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  type="text"
+                                  danger
+                                  icon={<DeleteOutlined />}
+                                  size="small"
+                                  onClick={() => deleteChecklistItem(item.id)}
+                                />
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -451,10 +667,112 @@ export function TaskDetailModal({
                             onChange={(e) => setNewChecklistText(e.target.value)}
                             onPressEnter={addChecklistItem}
                           />
-                          <Button size="middle" onClick={addChecklistItem}>
+                          <Button size="middle" icon={<PlusOutlined />} onClick={addChecklistItem}>
                             Thêm
                           </Button>
                         </div>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'worklogs',
+                  label: (
+                    <span>
+                      <ClockCircleOutlined /> Ghi nhận giờ làm ({workLogs.length})
+                    </span>
+                  ),
+                  children: (
+                    <div className="space-y-4 pt-1">
+                      {/* Worklog Quick Form */}
+                      <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                            <ClockCircleOutlined className="text-amber-500" />
+                            <span>Ghi nhận thời gian làm việc mới</span>
+                          </span>
+                          <span className="text-xs text-zinc-500">
+                            Đã log: <strong className="text-zinc-900 dark:text-zinc-100">{totalTimeSpentHours}h</strong> / {estimateHours}h ({timeProgressPercent}%)
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <InputNumber
+                            min={5}
+                            max={1440}
+                            step={15}
+                            value={logMinutes}
+                            onChange={(v) => setLogMinutes(v || 60)}
+                            addonAfter="phút"
+                            className="w-full sm:w-40"
+                          />
+                          <Input
+                            placeholder="Mô tả công việc đã hoàn thành..."
+                            value={logDescription}
+                            onChange={(e) => setLogDescription(e.target.value)}
+                            onPressEnter={handleAddWorkLog}
+                            className="flex-1"
+                          />
+                          <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            loading={isSubmittingWorkLog}
+                            onClick={handleAddWorkLog}
+                            className="bg-indigo-600 shrink-0"
+                          >
+                            Ghi log
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Work Logs List */}
+                      <div className="space-y-2">
+                        <span className="font-bold text-xs text-zinc-500 uppercase tracking-wider">
+                          Lịch sử ghi nhận thời gian ({workLogs.length})
+                        </span>
+                        {workLogs.length === 0 ? (
+                          <p className="text-xs text-zinc-400 italic">Chưa có lượt ghi log thời gian nào.</p>
+                        ) : (
+                          workLogs.map((log) => (
+                            <div
+                              key={log.id}
+                              className="flex items-center justify-between p-2.5 rounded-lg border border-zinc-200/80 dark:border-zinc-800/80 text-xs"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <Avatar size="small" className="bg-amber-600 font-bold shrink-0">
+                                  {(log.user?.name || 'U').substring(0, 1)}
+                                </Avatar>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                                      {log.user?.name || 'Thành viên'}
+                                    </span>
+                                    <Tag color="orange" className="m-0 font-bold">
+                                      {log.minutes_logged} phút ({Math.round((log.minutes_logged / 60) * 10) / 10}h)
+                                    </Tag>
+                                  </div>
+                                  <p className="text-zinc-600 dark:text-zinc-400 m-0 mt-0.5">
+                                    {log.description || 'Thực hiện nhiệm vụ'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-zinc-400 font-mono">
+                                  {dayjs(log.logged_at).format('HH:mm DD/MM')}
+                                </span>
+                                <Popconfirm
+                                  title="Xóa lượt ghi log này?"
+                                  onConfirm={() => handleDeleteWorkLog(log.id, log.minutes_logged)}
+                                  okText="Xóa"
+                                  cancelText="Hủy"
+                                >
+                                  <Button type="text" danger icon={<DeleteOutlined />} size="small" />
+                                </Popconfirm>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
                   ),
@@ -603,13 +921,13 @@ export function TaskDetailModal({
                   key: 'activity',
                   label: (
                     <span>
-                      <HistoryOutlined /> Lịch sử
+                      <HistoryOutlined /> Lịch sử hoạt động
                     </span>
                   ),
                   children: (
                     <div className="space-y-3 pt-1">
                       {activities.map((act, i) => (
-                        <div key={i} className="flex gap-2.5 items-start text-xs">
+                        <div key={i} className="flex gap-2.5 items-start text-xs p-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800">
                           <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
                           <div>
                             <p className="font-semibold text-zinc-800 dark:text-zinc-200 m-0">
@@ -738,22 +1056,29 @@ export function TaskDetailModal({
                 />
               </div>
 
-              {/* Estimate */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-zinc-500 flex items-center gap-1">
-                  <ClockCircleOutlined />
-                  <span>Ước lượng thời gian</span>
-                </label>
-                <Space.Compact className="w-full">
+              {/* Estimate & Time Logged */}
+              <div className="space-y-1.5 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="flex items-center justify-between text-[11px] font-bold text-zinc-500">
+                  <span className="flex items-center gap-1">
+                    <ClockCircleOutlined />
+                    <span>Tiến độ thời gian làm việc</span>
+                  </span>
+                  <span className="font-mono text-zinc-700 dark:text-zinc-300">
+                    {totalTimeSpentHours}h / {estimateHours}h
+                  </span>
+                </div>
+                <Progress percent={timeProgressPercent} size="small" strokeColor="#f59e0b" />
+                <Space.Compact className="w-full mt-1">
                   <InputNumber
                     min={0}
                     max={500}
-                    value={detail?.estimate_minutes ? detail.estimate_minutes / 60 : 4}
+                    value={estimateHours}
                     onChange={(val) => handleUpdateField('estimate_minutes', (val || 0) * 60)}
                     className="w-full"
+                    placeholder="Thời gian ước tính (giờ)"
                   />
                   <Button disabled className="!text-zinc-500 !bg-zinc-100 dark:!bg-zinc-800 pointer-events-none">
-                    giờ
+                    giờ estimate
                   </Button>
                 </Space.Compact>
               </div>

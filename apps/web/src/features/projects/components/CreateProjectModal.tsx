@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Modal, Form, Input, Radio, Button, message } from 'antd';
+import { Modal, Form, Input, Radio, Button, App } from 'antd';
 import { createProjectApi } from '../api/projectApi';
 
 interface CreateProjectModalProps {
@@ -11,6 +11,7 @@ interface CreateProjectModalProps {
 }
 
 export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProjectModalProps) {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [isLoading, setIsLoading] = React.useState(false);
 

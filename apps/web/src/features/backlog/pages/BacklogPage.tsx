@@ -9,13 +9,13 @@ import {
   Input,
   Badge,
   Avatar,
-  message,
   Empty,
   Modal,
   Form,
   DatePicker,
   Popconfirm,
   Dropdown,
+  App,
 } from 'antd';
 import {
   UnorderedListOutlined,
@@ -27,6 +27,7 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/axios';
 import { TaskDetailModal } from '@/features/tasks/components/TaskDetailModal';
 import { CreateTaskModal } from '@/features/tasks/components/CreateTaskModal';
@@ -55,7 +56,17 @@ interface SprintItem {
 }
 
 export function BacklogPage({ projectKey }: { projectKey: string }) {
+  const { message } = App.useApp();
   const pKey = projectKey.toUpperCase();
+  const searchParams = useSearchParams();
+  const sprintIdParam = searchParams.get('sprintId');
+  const [selectedSprintFilter, setSelectedSprintFilter] = React.useState<string | null>(sprintIdParam);
+
+  React.useEffect(() => {
+    if (sprintIdParam) {
+      setSelectedSprintFilter(sprintIdParam);
+    }
+  }, [sprintIdParam]);
 
   const [loading, setLoading] = React.useState(true);
   const [sprints, setSprints] = React.useState<SprintItem[]>([
@@ -263,8 +274,9 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
     return matchesSearch && matchesPriority && matchesStatus && matchesAssignee;
   });
 
-  const activeSprint = sprints.find((s) => s.status === 'active');
-  const futureSprints = sprints.filter((s) => s.status === 'future');
+  const activeSprint = sprints.find((s) => s.status === 'active' && (!selectedSprintFilter || s.id === selectedSprintFilter));
+  const futureSprints = sprints.filter((s) => s.status === 'future' && (!selectedSprintFilter || s.id === selectedSprintFilter));
+  const showBacklog = !selectedSprintFilter;
 
   const getSprintColumns = (currentSprintId: string | null) => [
     {
@@ -398,8 +410,24 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
           setSelectedPriority(null);
           setSelectedStatus(null);
           setSelectedAssignee(null);
+          setSelectedSprintFilter(null);
         }}
       />
+
+      {/* Selected Sprint Filter Banner */}
+      {selectedSprintFilter && (
+        <div className="flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs">
+          <div className="flex items-center gap-2">
+            <Tag color="indigo" className="m-0 font-semibold">Đang lọc theo Sprint</Tag>
+            <span className="text-zinc-800 dark:text-zinc-200 font-bold">
+              {sprints.find((s) => s.id === selectedSprintFilter)?.name || selectedSprintFilter}
+            </span>
+          </div>
+          <Button size="small" type="link" onClick={() => setSelectedSprintFilter(null)} className="p-0 text-xs">
+            ✕ Bỏ lọc (Hiển thị tất cả)
+          </Button>
+        </div>
+      )}
 
       {/* Active Sprint Section */}
       {activeSprint && (
@@ -511,52 +539,54 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
       })}
 
       {/* Backlog Section */}
-      <Card
-        title={
-          <div className="flex items-center justify-between py-1">
-            <span className="font-bold text-base">
-              Backlog ({filteredTasks.filter((t) => !t.sprint_id).length} công việc chưa phân Sprint)
-            </span>
-          </div>
-        }
-        className="shadow-xs space-y-4"
-      >
-        <Table
-          dataSource={filteredTasks.filter((t) => !t.sprint_id)}
-          columns={getSprintColumns(null)}
-          pagination={false}
-          size="middle"
-          loading={loading}
-          scroll={{ x: 650 }}
-          onRow={(record) => ({
-            onClick: () => handleRowClick(record),
-          })}
-          locale={{ emptyText: <Empty description="Backlog đang trống" /> }}
-        />
-
-        {/* Quick Create Input */}
-        <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <Input
-            prefix={<PlusOutlined className="text-zinc-400" />}
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            onPressEnter={handleAddBacklogTask}
-            placeholder="Tạo công việc mới vào Backlog (Nhấn Enter để lưu)..."
-            size="large"
-            className="flex-1"
-            disabled={creating}
+      {showBacklog && (
+        <Card
+          title={
+            <div className="flex items-center justify-between py-1">
+              <span className="font-bold text-base">
+                Backlog ({filteredTasks.filter((t) => !t.sprint_id).length} công việc chưa phân Sprint)
+              </span>
+            </div>
+          }
+          className="shadow-xs space-y-4"
+        >
+          <Table
+            dataSource={filteredTasks.filter((t) => !t.sprint_id)}
+            columns={getSprintColumns(null)}
+            pagination={false}
+            size="middle"
+            loading={loading}
+            scroll={{ x: 650 }}
+            onRow={(record) => ({
+              onClick: () => handleRowClick(record),
+            })}
+            locale={{ emptyText: <Empty description="Backlog đang trống" /> }}
           />
-          <Button
-            type="primary"
-            onClick={handleAddBacklogTask}
-            size="large"
-            className="bg-indigo-600"
-            loading={creating}
-          >
-            Thêm Task
-          </Button>
-        </div>
-      </Card>
+
+          {/* Quick Create Input */}
+          <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <Input
+              prefix={<PlusOutlined className="text-zinc-400" />}
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              onPressEnter={handleAddBacklogTask}
+              placeholder="Tạo công việc mới vào Backlog (Nhấn Enter để lưu)..."
+              size="large"
+              className="flex-1"
+              disabled={creating}
+            />
+            <Button
+              type="primary"
+              onClick={handleAddBacklogTask}
+              size="large"
+              className="bg-indigo-600"
+              loading={creating}
+            >
+              Thêm Task
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* 1000px Centered Modal for Task Detail */}
       <TaskDetailModal
