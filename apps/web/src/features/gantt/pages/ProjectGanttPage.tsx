@@ -456,11 +456,11 @@ export function ProjectGanttPage({ projectKey }: { projectKey: string }) {
           {/* 3. PROJECT MILESTONES */}
           <Card title="Lịch trình cột mốc trọng điểm (Milestones)" className="shadow-xs border-zinc-200 dark:border-zinc-800">
             <Timeline
-              mode="start"
+              mode="left"
               items={[
                 {
                   color: 'green',
-                  content: (
+                  children: (
                     <div>
                       <h4 className="font-bold text-sm m-0">Cột mốc 1: Nền tảng Monorepo & Backend Core</h4>
                       <p className="text-xs text-zinc-500 m-0">
@@ -471,7 +471,7 @@ export function ProjectGanttPage({ projectKey }: { projectKey: string }) {
                 },
                 {
                   color: 'blue',
-                  content: (
+                  children: (
                     <div>
                       <h4 className="font-bold text-sm m-0">Cột mốc 2: Ant Design UI & Feature Modules</h4>
                       <p className="text-xs text-zinc-500 m-0">
@@ -482,7 +482,7 @@ export function ProjectGanttPage({ projectKey }: { projectKey: string }) {
                 },
                 {
                   color: 'gray',
-                  content: (
+                  children: (
                     <div>
                       <h4 className="font-bold text-sm m-0">Cột mốc 3: Phân quyền LDAP & Production Release</h4>
                       <p className="text-xs text-zinc-500 m-0">

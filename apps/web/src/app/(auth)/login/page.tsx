@@ -9,42 +9,20 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-[100dvh] w-full grid grid-cols-1 lg:grid-cols-2 bg-[#fafafa] dark:bg-[#09090b]">
-      {/* Left Column - Form */}
+    <div className="min-h-[100dvh] w-full grid grid-cols-1 bg-[#fafafa] dark:bg-[#09090b]">
       <div className="flex flex-col justify-between p-8 sm:p-12 lg:p-16">
-        {/* Top Brand Logo */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-accent-600 flex items-center justify-center text-white shadow-xs">
-            <Kanban size={22} weight="bold" />
-          </div>
-          <span className="font-bold text-lg text-zinc-900 dark:text-zinc-100 tracking-tight">
-            Tasks<span className="text-accent-500">.</span>
-          </span>
-        </div>
-
-        {/* Center Login Card */}
         <div className="my-auto py-12 max-w-sm w-full mx-auto">
           <div className="mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mb-2">
-              Chào mừng trở lại
-            </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Đăng nhập bằng tài khoản nội bộ hoặc LDAP doanh nghiệp để bắt đầu công việc.
-            </p>
+            <h2 className="text-lg sm:text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mb-2">
+              Đăng nhập bằng tài khoản nội bộ hoặc LDAP
+            </h2>
           </div>
-
           <LoginForm />
         </div>
 
-        {/* Bottom Footer Text */}
-        <div className="text-xs text-zinc-400 dark:text-zinc-600">
-          © {new Date().getFullYear()} Tasks System. Enterprise Project & Workflow Management.
-        </div>
       </div>
 
-      {/* Right Column - Brand Showcase (Desktop only) */}
-      <div className="hidden lg:flex flex-col justify-between p-16 bg-zinc-900 text-white relative overflow-hidden border-l border-zinc-800">
-        {/* Gradient Mesh Overlay */}
+      {/* <div className="hidden lg:flex flex-col justify-between p-16 bg-zinc-900 text-white relative overflow-hidden border-l border-zinc-800">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-900/40 via-zinc-900 to-zinc-950 pointer-events-none" />
 
         <div className="relative z-10 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-accent-400">
@@ -78,7 +56,7 @@ export default function LoginPage() {
         <div className="relative z-10 text-xs text-zinc-500">
           Được thiết kế theo chuẩn Linear & Notion Interface.
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }

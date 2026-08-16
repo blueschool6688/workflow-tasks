@@ -125,7 +125,7 @@ export default function ProjectTimeTrackingPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={8}>
           <Card className="shadow-xs text-center">
-            <Statistic title="Tổng giờ đã log tuần này" value={`${totalHours}h`} styles={{ content: { color: '#6366f1' } }} />
+            <Statistic title="Tổng giờ đã log tuần này" value={`${totalHours}h`} valueStyle={{ color: '#6366f1' }} />
           </Card>
         </Col>
         <Col xs={24} sm={8}>
@@ -135,7 +135,7 @@ export default function ProjectTimeTrackingPage() {
         </Col>
         <Col xs={24} sm={8}>
           <Card className="shadow-xs text-center">
-            <Statistic title="Hiệu suất dự án" value="94.2%" styles={{ content: { color: '#10b981' } }} />
+            <Statistic title="Hiệu suất dự án" value="94.2%" valueStyle={{ color: '#10b981' }} />
           </Card>
         </Col>
       </Row>

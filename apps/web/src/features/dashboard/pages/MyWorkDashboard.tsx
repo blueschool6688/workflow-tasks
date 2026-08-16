@@ -294,7 +294,7 @@ export function MyWorkDashboard() {
             <Statistic
               title="Tỷ lệ hoàn thành chung"
               value={`${summary?.completion_rate ?? 68.5}%`}
-              styles={{ content: { color: '#10b981' } }}
+              valueStyle={{ color: '#10b981' }}
               prefix={<CheckCircleOutlined />}
             />
           </Card>
@@ -304,7 +304,7 @@ export function MyWorkDashboard() {
             <Statistic
               title="Sprints đang kích hoạt"
               value={summary?.active_sprints ?? 2}
-              styles={{ content: { color: '#6366f1' } }}
+              valueStyle={{ color: '#6366f1' }}
               prefix={<ThunderboltOutlined />}
             />
           </Card>
@@ -428,7 +428,7 @@ export function MyWorkDashboard() {
               items={[
                 {
                   color: 'green',
-                  content: (
+                  children: (
                     <div>
                       <p className="text-xs font-semibold m-0 text-zinc-800 dark:text-zinc-200">
                         Bạn đã hoàn thành công việc CORE-ENG-104: Quản lý chu kỳ Sprints
@@ -439,7 +439,7 @@ export function MyWorkDashboard() {
                 },
                 {
                   color: 'blue',
-                  content: (
+                  children: (
                     <div>
                       <p className="text-xs font-semibold m-0 text-zinc-800 dark:text-zinc-200">
                         Nguyễn Văn A đã gán CORE-ENG-102 cho bạn
@@ -450,7 +450,7 @@ export function MyWorkDashboard() {
                 },
                 {
                   color: 'orange',
-                  content: (
+                  children: (
                     <div>
                       <p className="text-xs font-semibold m-0 text-zinc-800 dark:text-zinc-200">
                         Trần Thị B đã thêm bình luận vào CORE-ENG-101

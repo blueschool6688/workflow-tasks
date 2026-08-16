@@ -358,7 +358,7 @@ export default function ProjectSummaryPage() {
             <Statistic
               title="Đã hoàn thành"
               value={summaryData?.completed_tasks_count ?? 16}
-              styles={{ content: { color: '#10b981' } }}
+              valueStyle={{ color: '#10b981' }}
               prefix={<CheckCircleOutlined />}
             />
           </Card>
@@ -368,7 +368,7 @@ export default function ProjectSummaryPage() {
             <Statistic
               title="Đang thực hiện"
               value={summaryData?.in_progress_tasks_count ?? 8}
-              styles={{ content: { color: '#6366f1' } }}
+              valueStyle={{ color: '#6366f1' }}
               prefix={<ClockCircleOutlined />}
             />
           </Card>
@@ -378,7 +378,7 @@ export default function ProjectSummaryPage() {
             <Statistic
               title="Tổng giờ đã log (Hours)"
               value={`${summaryData?.total_time_spent_hours ?? 142.5}h`}
-              styles={{ content: { color: '#f59e0b' } }}
+              valueStyle={{ color: '#f59e0b' }}
             />
           </Card>
         </Col>
