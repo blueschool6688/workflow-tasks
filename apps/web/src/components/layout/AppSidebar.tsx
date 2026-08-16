@@ -109,7 +109,6 @@ export function AppSidebar({
     },
   ];
 
-  // Match longest key first so specific project subroutes take precedence over general prefixes
   const sortedNavItems = [...menuItems]
     .filter((item): item is { key: string } & any => Boolean(item && 'key' in item))
     .sort((a, b) => (String(b.key).length - String(a.key).length));
@@ -156,21 +155,11 @@ export function AppSidebar({
           className="border-none bg-transparent text-xs font-medium"
         />
       </div>
-
-      {(!isCollapsed || isMobileOpen) && (
-        <div className="p-3 border-t border-zinc-100 dark:border-zinc-800/80">
-          <div className="px-2.5 py-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 text-[11px] text-zinc-500 flex items-center justify-between">
-            <span>Phiên bản Enterprise</span>
-            <span className="font-mono text-[10px] text-zinc-400">v1.0.0</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 
   return (
     <>
-      {/* Desktop Sider using Ant Design Sider */}
       <Sider
         collapsible
         collapsed={isCollapsed}
@@ -183,7 +172,6 @@ export function AppSidebar({
         {sidebarContent}
       </Sider>
 
-      {/* Mobile Drawer */}
       <Drawer
         placement="left"
         open={isMobileOpen}
