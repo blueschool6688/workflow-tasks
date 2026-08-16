@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+vendor/
+.pnpm-store/
+
+# Build & Turborepo outputs
+.next/
+.turbo/
+dist/
+build/
+out/
+.output/
+*.log
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+auth.json
+*.key
+
+# Laravel Storage & Cache
+apps/api/storage/app/public/*
+!apps/api/storage/app/public/.gitignore
+apps/api/storage/framework/cache/*
+!apps/api/storage/framework/cache/.gitignore
+apps/api/storage/framework/sessions/*
+!apps/api/storage/framework/sessions/.gitignore
+apps/api/storage/framework/views/*
+!apps/api/storage/framework/views/.gitignore
+apps/api/storage/logs/*
+!apps/api/storage/logs/.gitignore
+apps/api/database/*.sqlite
+!apps/api/database/.gitignore
+
+# PHPUnit & Testing
+.phpunit.cache/
+.phpunit.result.cache
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# AI Agent Output & Workspace Temporary Files
+graphify-out/
