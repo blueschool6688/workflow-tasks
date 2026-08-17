@@ -22,6 +22,12 @@ return [
             'roles' => 'Vai trò & Quyền hạn',
             'activity_logs' => 'Nhật ký thao tác',
             'media' => 'Thư viện Media',
+            'project_messages' => 'Tin nhắn & Chatbox Dự án',
+            'notifications' => 'Thông báo Hệ thống',
+            'task_comments' => 'Bình luận Công việc',
+            'task_work_logs' => 'Nhật ký Chấm công (Time Logs)',
+            'oauth_tokens' => 'Quản lý Token (Passport)',
+            'oauth_clients' => 'Quản lý OAuth Clients',
         ],
     ],
     'sections' => [

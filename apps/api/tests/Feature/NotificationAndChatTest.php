@@ -10,7 +10,7 @@ use App\Models\User;
 use App\Models\WorkflowStatus;
 use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
+use Laravel\Passport\Passport;
 use Tests\TestCase;
 
 class NotificationAndChatTest extends TestCase
@@ -44,7 +44,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_task_status_change_creates_notifications_for_assignee_and_reporter(): void
     {
-        Sanctum::actingAs($this->adminUser, ['*']);
+        Passport::actingAs($this->adminUser, ['*']);
 
         $task = Task::create([
             'project_id' => $this->project->id,
@@ -87,7 +87,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_user_can_list_notifications_and_get_unread_count(): void
     {
-        Sanctum::actingAs($this->assigneeUser, ['*']);
+        Passport::actingAs($this->assigneeUser, ['*']);
 
         Notification::create([
             'user_id' => $this->assigneeUser->id,
@@ -111,7 +111,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_user_can_mark_notification_as_read_and_delete(): void
     {
-        Sanctum::actingAs($this->assigneeUser, ['*']);
+        Passport::actingAs($this->assigneeUser, ['*']);
 
         $notification = Notification::create([
             'user_id' => $this->assigneeUser->id,
@@ -139,7 +139,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_user_can_mark_all_notifications_as_read(): void
     {
-        Sanctum::actingAs($this->assigneeUser, ['*']);
+        Passport::actingAs($this->assigneeUser, ['*']);
 
         Notification::create([
             'user_id' => $this->assigneeUser->id,
@@ -169,7 +169,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_project_team_chat_endpoints(): void
     {
-        Sanctum::actingAs($this->adminUser, ['*']);
+        Passport::actingAs($this->adminUser, ['*']);
 
         // Send a message
         $sendRes = $this->postJson("/api/v1/projects/{$this->project->id}/messages", [
@@ -215,7 +215,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_user_can_send_message_with_only_attachments_and_no_text(): void
     {
-        Sanctum::actingAs($this->adminUser, ['*']);
+        Passport::actingAs($this->adminUser, ['*']);
 
         $response = $this->postJson("/api/v1/projects/{$this->project->id}/messages", [
             'content' => '',
@@ -238,7 +238,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_task_route_binding_resolves_partial_task_numbers(): void
     {
-        Sanctum::actingAs($this->adminUser, ['*']);
+        Passport::actingAs($this->adminUser, ['*']);
 
         $task = Task::create([
             'project_id' => $this->project->id,
@@ -262,7 +262,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_broadcasting_auth_authenticates_private_channels_with_sanctum(): void
     {
-        Sanctum::actingAs($this->adminUser, ['*']);
+        Passport::actingAs($this->adminUser, ['*']);
 
         // 1. User private channel
         $resUser = $this->post('/api/v1/broadcasting/auth', [
@@ -305,7 +305,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_user_can_send_and_list_messages_using_project_key_slug(): void
     {
-        Sanctum::actingAs($this->adminUser, ['*']);
+        Passport::actingAs($this->adminUser, ['*']);
 
         // Send using key
         $sendRes = $this->postJson("/api/v1/projects/{$this->project->key}/messages", [
@@ -329,7 +329,7 @@ class NotificationAndChatTest extends TestCase
 
     public function test_project_messages_cursor_pagination(): void
     {
-        Sanctum::actingAs($this->adminUser, ['*']);
+        Passport::actingAs($this->adminUser, ['*']);
 
         // Create 15 test messages with distinct timestamps
         for ($i = 1; $i <= 15; $i++) {

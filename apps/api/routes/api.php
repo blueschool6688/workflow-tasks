@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/login', [AuthController::class, 'login']);
 
 // --- Authenticated ---
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:api,sanctum'])->group(function () {
 
     // Auth
     Route::get('/auth/me', [AuthController::class, 'me']);

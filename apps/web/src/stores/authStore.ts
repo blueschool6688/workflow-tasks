@@ -22,6 +22,8 @@ interface AuthState {
   token: string | null;
   workspaces: WorkspaceInfo[];
   isAuthenticated: boolean;
+  _hasHydrated: boolean;
+  setHasHydrated: (hasHydrated: boolean) => void;
   setAuth: (user: UserProfile, token: string, workspaces?: WorkspaceInfo[]) => void;
   setWorkspaces: (workspaces: WorkspaceInfo[]) => void;
   setCurrentWorkspaceId: (workspaceId: string | null) => void;
@@ -36,12 +38,15 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       workspaces: [],
       isAuthenticated: false,
+      _hasHydrated: false,
+      setHasHydrated: (hasHydrated: boolean) => set({ _hasHydrated: hasHydrated }),
       setAuth: (user, token, workspaces = []) =>
         set({
           user,
           token,
           workspaces,
           isAuthenticated: true,
+          _hasHydrated: true,
         }),
       setWorkspaces: (workspaces) => set({ workspaces }),
       setCurrentWorkspaceId: (workspaceId) =>
@@ -58,11 +63,17 @@ export const useAuthStore = create<AuthState>()(
           token: null,
           workspaces: [],
           isAuthenticated: false,
+          _hasHydrated: true,
         }),
     }),
     {
       name: 'tasks-auth',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => (typeof window !== 'undefined' ? localStorage : ({} as Storage))),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.setHasHydrated(true);
+        }
+      },
     }
   )
 );

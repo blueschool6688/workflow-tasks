@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Broadcast;
 |
 */
 
-Broadcast::routes(['middleware' => ['api', 'auth:sanctum']]);
-Broadcast::routes(['middleware' => ['api', 'auth:sanctum'], 'prefix' => 'api/v1']);
+Broadcast::routes(['middleware' => ['api', 'auth:api,sanctum']]);
+Broadcast::routes(['middleware' => ['api', 'auth:api,sanctum'], 'prefix' => 'api/v1']);
 
 Broadcast::channel('user.{id}', function ($user, $id) {
     return (string) $user->id === (string) $id;

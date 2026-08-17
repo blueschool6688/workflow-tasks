@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Form, Input, Button, Alert, Checkbox } from 'antd';
+import { Form, Input, Button, Checkbox, message } from 'antd';
 import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons';
 import { useAuthStore } from '@/stores/authStore';
 import { loginApi } from '../api/authApi';
@@ -17,20 +17,14 @@ export function LoginForm() {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [form] = Form.useForm<LoginFormValues>();
-
   const [isLoading, setIsLoading] = React.useState(false);
-  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
-
   const handleFinish = async (values: LoginFormValues) => {
     const { username, password } = values;
     if (!username?.trim() || !password?.trim()) {
-      setErrorMsg('Vui lòng nhập đầy đủ thông tin đăng nhập.');
+      message.error('Vui lòng nhập đầy đủ thông tin đăng nhập.')
       return;
     }
-
     setIsLoading(true);
-    setErrorMsg(null);
-
     try {
       const res = await loginApi({ username: username.trim(), password: password.trim() });
       setAuth(
@@ -53,7 +47,7 @@ export function LoginForm() {
         apiErr?.response?.data?.message ||
         apiErr?.response?.data?.errors?.username?.[0] ||
         'Tên đăng nhập hoặc mật khẩu không chính xác.';
-      setErrorMsg(msg);
+      message.error(msg)
     } finally {
       setIsLoading(false);
     }
@@ -61,19 +55,6 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-sm">
-      {errorMsg && (
-        <div className="mb-4">
-          <Alert
-            message={errorMsg}
-            type="error"
-            showIcon
-            closable
-            onClose={() => setErrorMsg(null)}
-            className="rounded-lg text-xs"
-          />
-        </div>
-      )}
-
       <Form<LoginFormValues>
         form={form}
         name="loginForm"

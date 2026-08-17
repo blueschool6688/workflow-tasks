@@ -7,7 +7,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
+use Laravel\Passport\Passport;
 use Tests\TestCase;
 
 class ComprehensiveApiTest extends TestCase
@@ -31,7 +31,7 @@ class ComprehensiveApiTest extends TestCase
         $this->user->current_workspace_id = $this->workspace->id;
         $this->user->save();
 
-        Sanctum::actingAs($this->user, ['*']);
+        Passport::actingAs($this->user, ['*']);
     }
 
     public function test_auth_me_endpoint(): void

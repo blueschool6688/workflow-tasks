@@ -35,11 +35,13 @@ class AuthController extends Controller
             ]);
         }
 
-        $token = $user->createToken('client-web-token')->plainTextToken;
+        $tokenResult = $user->createToken('client-web-token');
+        $token = $tokenResult->accessToken;
 
         return response()->json([
             'message'    => 'Đăng nhập thành công',
             'token'      => $token,
+            'token_type' => 'Bearer',
             'user'       => $this->formatUser($user),
             'workspaces' => $user->workspaces()->get(['workspaces.id', 'workspaces.name', 'workspaces.slug']),
         ]);
@@ -96,7 +98,15 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+        if ($user) {
+            if (method_exists($user, 'token') && $user->token()) {
+                $user->token()->revoke();
+            }
+            if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken()) {
+                $user->currentAccessToken()->delete();
+            }
+        }
 
         return response()->json(['message' => 'Đã đăng xuất thành công']);
     }

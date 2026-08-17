@@ -22,6 +22,12 @@ return [
             'roles' => 'Roles & Permissions',
             'activity_logs' => 'Audit Log',
             'media' => 'Media Library',
+            'project_messages' => 'Project Chat Messages',
+            'notifications' => 'System Notifications',
+            'task_comments' => 'Task Comments',
+            'task_work_logs' => 'Task Work Logs (Time Tracking)',
+            'oauth_tokens' => 'Passport Access Tokens',
+            'oauth_clients' => 'Passport OAuth Clients',
         ],
     ],
     'sections' => [

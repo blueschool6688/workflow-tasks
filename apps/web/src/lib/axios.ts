@@ -37,22 +37,11 @@ api.interceptors.response.use(
         error.config?.url?.includes('/auth/login') ||
         error.config?.url?.includes('/auth/register');
 
-      if (!isAuthEndpoint) {
-        let hasToken = !!useAuthStore.getState().token;
-        if (!hasToken && typeof window !== 'undefined') {
-          try {
-            const persisted = localStorage.getItem('tasks-auth');
-            hasToken = !!JSON.parse(persisted || '{}')?.state?.token;
-          } catch {
-            // Ignore
-          }
-        }
-
-        if (hasToken) {
+      if (!isAuthEndpoint && typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        if (!currentPath.startsWith('/login')) {
           useAuthStore.getState().logout();
-          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-            window.location.href = '/login';
-          }
+          window.location.href = '/login';
         }
       }
     }
