@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Form, Input, Button, Checkbox, message } from 'antd';
+import { Form, Input, Button, Checkbox, App } from 'antd';
 import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons';
 import { useAuthStore } from '@/stores/authStore';
 import { loginApi } from '../api/authApi';
@@ -14,6 +14,7 @@ interface LoginFormValues {
 }
 
 export function LoginForm() {
+  const { message } = App.useApp();
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [form] = Form.useForm<LoginFormValues>();
