@@ -10,12 +10,13 @@ import {
   DragStartEvent,
   DragEndEvent,
 } from '@dnd-kit/core';
-import { getKanbanBoardApi, updateTaskStatusApi, KanbanColumnData, KanbanTask } from '../api/boardApi';
+import { getKanbanBoardFullApi, updateTaskStatusApi, KanbanColumnData, KanbanTask } from '../api/boardApi';
 import { KanbanColumn } from '../components/KanbanColumn';
 import { KanbanCard } from '../components/KanbanCard';
 import { BoardFilterBar } from '../components/BoardFilterBar';
 import { TaskDetailModal } from '@/features/tasks/components/TaskDetailModal';
 import { CreateTaskModal } from '@/features/tasks/components/CreateTaskModal';
+import { ProjectWorkflowModal } from '@/features/workflow/components/ProjectWorkflowModal';
 import { Spin, Button, App, Tag, Select, Progress, Space } from 'antd';
 import {
   AppstoreOutlined,
@@ -25,6 +26,7 @@ import {
   ThunderboltOutlined,
   UnorderedListOutlined,
   ArrowRightOutlined,
+  ApartmentOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/axios';
@@ -56,6 +58,8 @@ export function KanbanBoardPage({ projectKey, sprintId }: KanbanBoardPageProps) 
   const [activeTask, setActiveTask] = React.useState<KanbanTask | null>(null);
   const [selectedTask, setSelectedTask] = React.useState<KanbanTask | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
+  const [canManageWorkflow, setCanManageWorkflow] = React.useState(false);
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = React.useState(false);
 
   // Filters
   const [search, setSearch] = React.useState('');
@@ -128,8 +132,9 @@ export function KanbanBoardPage({ projectKey, sprintId }: KanbanBoardPageProps) 
   const fetchBoard = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await getKanbanBoardApi(projectKey, currentSprintId);
-      setColumns(data);
+      const res = await getKanbanBoardFullApi(projectKey, currentSprintId);
+      setColumns(res.columns);
+      setCanManageWorkflow(res.can_manage_workflow);
     } catch {
       message.error('Không thể tải dữ liệu Kanban Board');
     } finally {
@@ -317,6 +322,15 @@ export function KanbanBoardPage({ projectKey, sprintId }: KanbanBoardPageProps) 
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 shrink-0">
+            {canManageWorkflow && (
+              <Button
+                icon={<ApartmentOutlined className="text-indigo-500" />}
+                onClick={() => setIsWorkflowModalOpen(true)}
+                className="font-medium hover:border-indigo-500"
+              >
+                Thiết lập Quy trình
+              </Button>
+            )}
             <Button
               icon={<UnorderedListOutlined />}
               onClick={() => router.push(`/projects/${projectKey}/backlog?sprintId=${currentSprintId}`)}
@@ -348,15 +362,22 @@ export function KanbanBoardPage({ projectKey, sprintId }: KanbanBoardPageProps) 
 
             <div className="flex items-center gap-2">
               <span className="text-zinc-600 dark:text-zinc-400 font-bold">
-                {doneTasks}/{totalTasks} tasks ({progressPercent}%)
+                Tiến độ:
               </span>
-              <Progress
-                percent={progressPercent}
-                size="small"
-                showInfo={false}
-                strokeColor="#10b981"
-                className="w-20 m-0"
-              />
+              <div className="w-24">
+                <Progress
+                  percent={progressPercent}
+                  size="small"
+                  strokeColor={{
+                    '0%': '#6366f1',
+                    '100%': '#10b981',
+                  }}
+                  showInfo={false}
+                />
+              </div>
+              <span className="font-bold text-zinc-900 dark:text-zinc-100 font-mono">
+                {doneTasks}/{totalTasks}
+              </span>
             </div>
           </div>
         </div>
@@ -421,6 +442,14 @@ export function KanbanBoardPage({ projectKey, sprintId }: KanbanBoardPageProps) 
         onClose={() => setIsCreateModalOpen(false)}
         projectKey={projectKey}
         onSuccess={handleTaskCreated}
+      />
+
+      {/* Project Workflow Configuration Modal */}
+      <ProjectWorkflowModal
+        open={isWorkflowModalOpen}
+        projectKey={projectKey}
+        onClose={() => setIsWorkflowModalOpen(false)}
+        onWorkflowUpdated={fetchBoard}
       />
     </div>
   );

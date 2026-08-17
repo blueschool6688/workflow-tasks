@@ -22,6 +22,13 @@ class WorkflowResource extends JsonResource
                 'category' => $s->category,
                 'order'    => $s->order,
             ])),
+            'transitions'  => $this->whenLoaded('transitions', fn () => $this->transitions->map(fn ($t) => [
+                'id'             => $t->id,
+                'from_status_id' => $t->from_status_id,
+                'to_status_id'   => $t->to_status_id,
+                'name'           => $t->name,
+                'rules'          => $t->rules,
+            ])),
             'created_at'   => $this->created_at?->toIso8601String(),
         ];
     }

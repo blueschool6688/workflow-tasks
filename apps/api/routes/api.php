@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/login', [AuthController::class, 'login']);
 
 // --- Authenticated ---
-Route::middleware(['auth:api,sanctum'])->group(function () {
+Route::middleware(['auth:api'])->group(function () {
 
     // Auth
     Route::get('/auth/me', [AuthController::class, 'me']);
@@ -124,7 +124,16 @@ Route::middleware(['auth:api,sanctum'])->group(function () {
     // Project → Activity
     Route::get('/projects/{project}/activity', [ActivityLogController::class, 'forProject']);
 
-    // Workflows
+    // Project → Workflow
+    Route::get('/projects/{project}/workflow', [WorkflowController::class, 'projectWorkflow']);
+    Route::post('/projects/{project}/workflow', [WorkflowController::class, 'saveProjectWorkflow']);
+    Route::post('/projects/{project}/workflow/statuses', [WorkflowController::class, 'storeProjectStatus']);
+    Route::patch('/projects/{project}/workflow/statuses/{status}', [WorkflowController::class, 'updateProjectStatus']);
+    Route::delete('/projects/{project}/workflow/statuses/{status}', [WorkflowController::class, 'destroyProjectStatus']);
+    Route::post('/projects/{project}/workflow/transitions', [WorkflowController::class, 'storeProjectTransition']);
+    Route::delete('/projects/{project}/workflow/transitions/{transition}', [WorkflowController::class, 'destroyProjectTransition']);
+
+    // Workflows (Global)
     Route::get('/workflows', [WorkflowController::class, 'index']);
     Route::get('/workflows/{workflow}', [WorkflowController::class, 'show']);
     Route::post('/workflows', [WorkflowController::class, 'store']);

@@ -26,6 +26,49 @@ export interface KanbanColumnData {
   tasks: KanbanTask[];
 }
 
+export interface KanbanBoardResult {
+  columns: KanbanColumnData[];
+  can_manage_workflow: boolean;
+  workflow?: any;
+}
+
+export async function getKanbanBoardFullApi(projectKey: string, sprintId?: string): Promise<KanbanBoardResult> {
+  try {
+    const res = await api.get(`/projects/${projectKey}/board`, {
+      params: sprintId ? { sprint_id: sprintId } : undefined,
+    });
+    const rawCols = res.data.data || res.data;
+    const canManage = Boolean(res.data.can_manage_workflow);
+    const workflow = res.data.workflow;
+
+    if (Array.isArray(rawCols) && rawCols.length > 0) {
+      const columns = rawCols.map((col: any) => ({
+        id: col.id?.toString() || 'todo',
+        title: col.title || col.name || 'Cột',
+        category: (col.category || 'todo') as 'todo' | 'in_progress' | 'done',
+        wip_limit: col.wip_limit,
+        tasks: Array.isArray(col.tasks)
+          ? col.tasks.map((t: any) => ({
+              id: t.id?.toString(),
+              task_number: t.task_number || t.id,
+              title: t.title,
+              status: t.status_id?.toString() || col.id?.toString(),
+              priority: (t.priority === 'critical' ? 'urgent' : t.priority || 'medium') as any,
+              assignee: t.assignee ? { name: t.assignee.name, avatar: t.assignee.avatar_url } : undefined,
+              labels: t.labels || [],
+              estimate: t.estimate_minutes ? `${(t.estimate_minutes / 60).toFixed(1)}h` : undefined,
+            }))
+          : [],
+      }));
+      return { columns, can_manage_workflow: canManage, workflow };
+    }
+    throw new Error('Empty board data');
+  } catch {
+    const defaultCols = await getKanbanBoardApi(projectKey, sprintId);
+    return { columns: defaultCols, can_manage_workflow: true };
+  }
+}
+
 export async function getKanbanBoardApi(projectKey: string, sprintId?: string): Promise<KanbanColumnData[]> {
   try {
     const res = await api.get(`/projects/${projectKey}/board`, {

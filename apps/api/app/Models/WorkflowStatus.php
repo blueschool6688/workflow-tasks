@@ -19,6 +19,15 @@ class WorkflowStatus extends Model
         'category',
     ];
 
+    protected static function booted(): void
+    {
+        static::creating(function (WorkflowStatus $status) {
+            if (empty($status->slug) && ! empty($status->name)) {
+                $status->slug = \Illuminate\Support\Str::slug($status->name);
+            }
+        });
+    }
+
     public function workflow()
     {
         return $this->belongsTo(Workflow::class);

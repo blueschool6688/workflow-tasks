@@ -102,6 +102,20 @@ class TaskController extends Controller
             ->orderBy('order')
             ->get();
 
+        $user = $request->user();
+        $canManageWorkflow = false;
+        if ($user) {
+            if ($user->role === 'admin' || str_ends_with($user->email ?? '', '@tasks.local')) {
+                $canManageWorkflow = true;
+            } elseif ($project->lead_id === $user->id) {
+                $canManageWorkflow = true;
+            } elseif ($project->workspace && $project->workspace->members()->where('users.id', $user->id)->whereIn('workspace_members.role', ['owner', 'admin'])->exists()) {
+                $canManageWorkflow = true;
+            } elseif ($project->members()->where('users.id', $user->id)->whereIn('project_members.role_in_project', ['lead', 'admin', 'manager'])->exists()) {
+                $canManageWorkflow = true;
+            }
+        }
+
         $columns = $statuses->map(function ($status) use ($tasks) {
             $colTasks = $tasks->where('status_id', $status->id)->values();
 
@@ -114,7 +128,17 @@ class TaskController extends Controller
             ];
         });
 
-        return response()->json(['data' => $columns]);
+        return response()->json([
+            'data' => $columns,
+            'can_manage_workflow' => $canManageWorkflow,
+            'workflow' => $workflow ? [
+                'id' => $workflow->id,
+                'name' => $workflow->name,
+                'description' => $workflow->description,
+                'statuses' => $workflow->statuses()->orderBy('order')->get(),
+                'transitions' => $workflow->transitions()->get(),
+            ] : null,
+        ]);
     }
 
     public function store(Request $request, Project $project): JsonResponse
