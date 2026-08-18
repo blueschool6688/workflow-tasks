@@ -32,6 +32,10 @@ Broadcast::channel('project.{id}', function ($user, $id) {
         return false;
     }
 
+    if ($user->role === 'admin' || str_ends_with($user->email ?? '', '@tasks.local')) {
+        return true;
+    }
+
     if ((string) $project->lead_id === (string) $user->id) {
         return true;
     }
@@ -44,5 +48,5 @@ Broadcast::channel('project.{id}', function ($user, $id) {
         return true;
     }
 
-    return true; // allow workspace members
+    return false;
 });

@@ -72,7 +72,7 @@ export function AppSidebar({
     {
       key: `${projectBase}/board`,
       icon: <AppstoreOutlined />,
-      label: <Link href={`${projectBase}/board`} onClick={onCloseMobile}>Bảng Kanban</Link>,
+      label: <Link href={`${projectBase}/board`} onClick={onCloseMobile}>Bảng công việc</Link>,
     },
     {
       key: `${projectBase}/backlog`,
@@ -82,7 +82,7 @@ export function AppSidebar({
     {
       key: `${projectBase}/timeline`,
       icon: <LineChartOutlined />,
-      label: <Link href={`${projectBase}/timeline`} onClick={onCloseMobile}>Roadmap & Gantt</Link>,
+      label: <Link href={`${projectBase}/timeline`} onClick={onCloseMobile}>Roadmap</Link>,
     },
     {
       key: `${projectBase}/time`,

@@ -96,11 +96,19 @@ export function MyWorkDashboard() {
         ]);
       }
 
-      // Populate tasks list
       if (myRes.status === 'fulfilled' && myRes.value.data?.data) {
         const raw = myRes.value.data.data;
-        const list = [...(raw.my_tasks || []), ...(raw.due_today || []), ...(raw.overdue || [])];
-        setAllTasks(list);
+        const rawList = [...(raw.my_tasks || []), ...(raw.due_today || []), ...(raw.overdue || [])];
+        const seen = new Set<string>();
+        const uniqueList = rawList.filter((task: any) => {
+          const id = task?.id?.toString();
+          if (!id || seen.has(id)) {
+            return false;
+          }
+          seen.add(id);
+          return true;
+        });
+        setAllTasks(uniqueList);
       }
     } catch {
       // Fallback handled
@@ -144,9 +152,18 @@ export function MyWorkDashboard() {
     { id: '6', task_number: 'MOBI-101', project_key: 'MOBI', title: 'Khởi tạo Flutter mobile app framework & Navigation', status: 'In Progress', priority: 'medium', assignee: 'David Le', due: '24/08' },
   ];
 
-  const masterListToDisplay = allTasks.length > 0
-    ? allTasks.map((t: any) => ({
-        id: t.id?.toString() || Math.random().toString(),
+  const masterListToDisplay = React.useMemo(() => {
+    if (allTasks.length === 0) {
+      return defaultMasterTasks;
+    }
+    const seen = new Set<string>();
+    const list: typeof defaultMasterTasks = [];
+    for (const t of allTasks) {
+      const id = t.id?.toString();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      list.push({
+        id,
         task_number: t.task_number || t.id,
         project_key: t.project?.key || 'CORE-ENG',
         title: t.title,
@@ -154,8 +171,10 @@ export function MyWorkDashboard() {
         priority: t.priority || 'medium',
         assignee: t.assignee?.name || 'Chưa giao',
         due: t.due_date ? t.due_date.substring(0, 10) : 'Chưa đặt',
-      }))
-    : defaultMasterTasks;
+      });
+    }
+    return list;
+  }, [allTasks]);
 
   const filteredMasterList = masterListToDisplay.filter((item) => {
     const matchSearch =
@@ -531,7 +550,7 @@ export function MyWorkDashboard() {
         <Table
           dataSource={filteredMasterList}
           columns={columns}
-          rowKey="id"
+          rowKey={(record) => record.id}
           pagination={{ pageSize: 8, showSizeChanger: true }}
           size="middle"
           scroll={{ x: 750 }}
