@@ -8,9 +8,12 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean",
-    "generate:types": "pnpm --filter=@tasks/api-types generate"
+    "generate:types": "pnpm --filter=@tasks/api-types generate",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "prettier": "^3.5.0",
     "turbo": "^2.4.0",
     "typescript": "^5.7.3"
