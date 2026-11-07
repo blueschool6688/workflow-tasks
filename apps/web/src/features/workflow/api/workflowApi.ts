@@ -1,11 +1,11 @@
-import { api } from '@/lib/axios';
+import { api } from "@/lib/axios";
 
 export interface WorkflowStatusItem {
   id: string;
   name: string;
   slug?: string;
   color: string;
-  category: 'todo' | 'in_progress' | 'done' | 'cancelled';
+  category: "todo" | "in_progress" | "done";
   order: number;
 }
 
@@ -37,7 +37,9 @@ export interface ProjectWorkflowResponse {
   }>;
 }
 
-export async function getProjectWorkflowApi(projectKey: string): Promise<ProjectWorkflowResponse> {
+export async function getProjectWorkflowApi(
+  projectKey: string
+): Promise<ProjectWorkflowResponse> {
   const res = await api.get(`/projects/${projectKey}/workflow`);
   return res.data;
 }
@@ -55,11 +57,14 @@ export async function createProjectStatusApi(
   payload: {
     name: string;
     color?: string;
-    category?: 'todo' | 'in_progress' | 'done' | 'cancelled';
+    category?: "todo" | "in_progress" | "done";
     order?: number;
   }
 ) {
-  const res = await api.post(`/projects/${projectKey}/workflow/statuses`, payload);
+  const res = await api.post(
+    `/projects/${projectKey}/workflow/statuses`,
+    payload
+  );
   return res.data;
 }
 
@@ -69,16 +74,24 @@ export async function updateProjectStatusApi(
   payload: {
     name?: string;
     color?: string;
-    category?: 'todo' | 'in_progress' | 'done' | 'cancelled';
+    category?: "todo" | "in_progress" | "done";
     order?: number;
   }
 ) {
-  const res = await api.patch(`/projects/${projectKey}/workflow/statuses/${statusId}`, payload);
+  const res = await api.patch(
+    `/projects/${projectKey}/workflow/statuses/${statusId}`,
+    payload
+  );
   return res.data;
 }
 
-export async function deleteProjectStatusApi(projectKey: string, statusId: string) {
-  const res = await api.delete(`/projects/${projectKey}/workflow/statuses/${statusId}`);
+export async function deleteProjectStatusApi(
+  projectKey: string,
+  statusId: string
+) {
+  const res = await api.delete(
+    `/projects/${projectKey}/workflow/statuses/${statusId}`
+  );
   return res.data;
 }
 
@@ -91,11 +104,19 @@ export async function createProjectTransitionApi(
     rules?: Record<string, any>;
   }
 ) {
-  const res = await api.post(`/projects/${projectKey}/workflow/transitions`, payload);
+  const res = await api.post(
+    `/projects/${projectKey}/workflow/transitions`,
+    payload
+  );
   return res.data;
 }
 
-export async function deleteProjectTransitionApi(projectKey: string, transitionId: string) {
-  const res = await api.delete(`/projects/${projectKey}/workflow/transitions/${transitionId}`);
+export async function deleteProjectTransitionApi(
+  projectKey: string,
+  transitionId: string
+) {
+  const res = await api.delete(
+    `/projects/${projectKey}/workflow/transitions/${transitionId}`
+  );
   return res.data;
 }

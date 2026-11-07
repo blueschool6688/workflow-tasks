@@ -1,19 +1,44 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Card, Table, Statistic, Button, Tag, Modal, Form, InputNumber, Input, Row, Col, App } from 'antd';
-import { ClockCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import { useParams } from 'next/navigation';
-import { api } from '@/lib/axios';
+import * as React from "react";
+import {
+  Card,
+  Table,
+  Statistic,
+  Button,
+  Tag,
+  Modal,
+  Form,
+  InputNumber,
+  Input,
+  Row,
+  Col,
+  App,
+} from "antd";
+import { ClockCircleOutlined, PlusOutlined } from "@ant-design/icons";
+import { useParams } from "next/navigation";
+import dayjs from "dayjs";
+import { api, apiErrorMessage } from "@/lib/axios";
+import { postTaskWorkLogApi } from "@/features/tasks/api/taskApi";
+
+interface ProjectWorkLog {
+  id: string;
+  minutes_logged: number;
+  description?: string | null;
+  logged_at: string;
+  user?: { id: string | number; name: string };
+  task?: { id: string; task_number: string; title: string };
+}
 
 export default function ProjectTimeTrackingPage() {
   const { message } = App.useApp();
   const params = useParams();
-  const projectKey = (params?.projectKey as string) || 'CORE-ENG';
+  const projectKey = params?.projectKey as string;
   const pKey = projectKey.toUpperCase();
 
-  const [logs, setLogs] = React.useState<any[]>([]);
+  const [logs, setLogs] = React.useState<ProjectWorkLog[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [form] = Form.useForm();
 
@@ -21,80 +46,99 @@ export default function ProjectTimeTrackingPage() {
     try {
       setLoading(true);
       const res = await api.get(`/projects/${projectKey}/worklogs`);
-      const items = res.data.data || res.data || [];
-      setLogs(items);
-    } catch {
-      // Fallback sample worklogs
-      setLogs([
-        { id: 1, task_title: `${pKey}-101 Multi-tenant Schema`, user: { name: 'Alex K.' }, minutes_logged: 180, logged_at: '2026-08-16 09:30', description: 'Thiết kế Migration và Seeder' },
-        { id: 2, task_title: `${pKey}-102 Sanctum Auth & Policy`, user: { name: 'Sarah T.' }, minutes_logged: 120, logged_at: '2026-08-16 11:00', description: 'Viết Policy Gates và unit tests' },
-        { id: 3, task_title: `${pKey}-103 Kanban DnD Board`, user: { name: 'David L.' }, minutes_logged: 240, logged_at: '2026-08-16 14:15', description: 'Tích hợp Ant Design v5 và DnD' },
-      ]);
+      setLogs(res.data.data ?? []);
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Không tải được lịch sử ghi giờ"));
     } finally {
       setLoading(false);
     }
-  }, [projectKey, pKey]);
+  }, [projectKey, message]);
 
   React.useEffect(() => {
     fetchWorklogs();
   }, [fetchWorklogs]);
 
-  const handleCreateWorklog = async (values: any) => {
+  const handleCreateWorklog = async (values: {
+    task_number: string;
+    hours: number;
+    description?: string;
+  }) => {
+    const raw = values.task_number.trim().toUpperCase();
+    const taskNumber = /^\d+$/.test(raw) ? `${pKey}-${raw}` : raw;
     try {
-      const newLog = {
-        id: Date.now(),
-        task_title: `${pKey}-${values.task_number || '101'}`,
-        user: { name: 'Nguyen Van A' },
-        minutes_logged: values.hours * 60,
-        logged_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        description: values.description,
-      };
-      setLogs([newLog, ...logs]);
-      message.success('Đã ghi nhận thời gian làm việc!');
+      setSaving(true);
+      await postTaskWorkLogApi(
+        taskNumber,
+        Math.round(values.hours * 60),
+        values.description
+      );
+      message.success("Đã ghi nhận thời gian làm việc!");
       setIsModalOpen(false);
       form.resetFields();
-    } catch {
-      message.error('Không thể lưu worklog');
+      fetchWorklogs();
+    } catch (error) {
+      message.error(
+        apiErrorMessage(error, `Không thể ghi giờ cho task ${taskNumber}`)
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
-  const totalMinutes = logs.reduce((acc, curr) => acc + (curr.minutes_logged || 0), 0);
-  const totalHours = (totalMinutes / 60).toFixed(1);
+  const totalMinutes = logs.reduce(
+    (acc, curr) => acc + (curr.minutes_logged || 0),
+    0
+  );
+  const memberCount = new Set(logs.map((l) => l.user?.id).filter(Boolean)).size;
 
   const columns = [
     {
-      title: 'Công việc',
-      dataIndex: 'task_title',
-      key: 'task_title',
-      render: (text: string, record: any) => (
+      title: "Công việc",
+      key: "task",
+      render: (_: unknown, record: ProjectWorkLog) => (
         <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-          {text || record.task?.title || `${pKey}-Task`}
+          {record.task ? (
+            <>
+              <Tag color="indigo">{record.task.task_number}</Tag>
+              {record.task.title}
+            </>
+          ) : (
+            "—"
+          )}
         </span>
       ),
     },
     {
-      title: 'Thành viên',
-      dataIndex: ['user', 'name'],
-      key: 'user',
-      render: (name: string) => <Tag color="indigo">{name || 'Thành viên'}</Tag>,
+      title: "Thành viên",
+      dataIndex: ["user", "name"],
+      key: "user",
+      render: (name: string) => <Tag color="indigo">{name || "—"}</Tag>,
     },
     {
-      title: 'Thời gian đã ghi',
-      dataIndex: 'minutes_logged',
-      key: 'minutes_logged',
-      render: (min: number) => <Tag color="green">{min ? (min / 60).toFixed(1) + ' giờ (' + min + 'm)' : '0m'}</Tag>,
+      title: "Thời gian đã ghi",
+      dataIndex: "minutes_logged",
+      key: "minutes_logged",
+      render: (min: number) => (
+        <Tag color="green">{`${(min / 60).toFixed(1)} giờ (${min}m)`}</Tag>
+      ),
     },
     {
-      title: 'Mô tả / Ghi chú',
-      dataIndex: 'description',
-      key: 'description',
-      render: (desc: string) => <span className="text-xs text-zinc-500">{desc || '—'}</span>,
+      title: "Mô tả / Ghi chú",
+      dataIndex: "description",
+      key: "description",
+      render: (desc: string) => (
+        <span className="text-xs text-zinc-500">{desc || "—"}</span>
+      ),
     },
     {
-      title: 'Ngày ghi',
-      dataIndex: 'logged_at',
-      key: 'logged_at',
-      render: (date: string) => <span className="text-xs text-zinc-400">{date}</span>,
+      title: "Ngày ghi",
+      dataIndex: "logged_at",
+      key: "logged_at",
+      render: (date: string) => (
+        <span className="text-xs text-zinc-400">
+          {dayjs(date).format("DD/MM/YYYY HH:mm")}
+        </span>
+      ),
     },
   ];
 
@@ -125,26 +169,37 @@ export default function ProjectTimeTrackingPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={8}>
           <Card className="shadow-xs text-center">
-            <Statistic title="Tổng giờ đã log tuần này" value={`${totalHours}h`} valueStyle={{ color: '#6366f1' }} />
+            <Statistic
+              title="Tổng giờ đã ghi"
+              value={`${(totalMinutes / 60).toFixed(1)}h`}
+              valueStyle={{ color: "#6366f1" }}
+            />
           </Card>
         </Col>
         <Col xs={24} sm={8}>
           <Card className="shadow-xs text-center">
-            <Statistic title="Số lượt ghi nhận (Worklogs)" value={logs.length} />
+            <Statistic
+              title="Số lượt ghi nhận (Worklogs)"
+              value={logs.length}
+            />
           </Card>
         </Col>
         <Col xs={24} sm={8}>
           <Card className="shadow-xs text-center">
-            <Statistic title="Hiệu suất dự án" value="94.2%" valueStyle={{ color: '#10b981' }} />
+            <Statistic
+              title="Thành viên đã ghi giờ"
+              value={memberCount}
+              valueStyle={{ color: "#10b981" }}
+            />
           </Card>
         </Col>
       </Row>
 
-      <Card title="Lịch sử ghi nhận giờ làm việc gần đây" className="shadow-xs">
+      <Card title="Lịch sử ghi nhận giờ làm việc" className="shadow-xs">
         <Table
           dataSource={logs}
           columns={columns}
-          rowKey={(r) => r.id?.toString() || Math.random().toString()}
+          rowKey="id"
           loading={loading}
           pagination={{ pageSize: 8 }}
           scroll={{ x: 600 }}
@@ -158,18 +213,36 @@ export default function ProjectTimeTrackingPage() {
         onOk={() => form.submit()}
         okText="Lưu Worklog"
         cancelText="Hủy"
+        confirmLoading={saving}
       >
         <Form form={form} layout="vertical" onFinish={handleCreateWorklog}>
-          <Form.Item name="task_number" label="Mã Task" rules={[{ required: true, message: 'Vui lòng nhập mã task' }]}>
-            <Input placeholder="Ví dụ: 101 hoặc PROJ-101" />
+          <Form.Item
+            name="task_number"
+            label="Mã Task"
+            rules={[{ required: true, message: "Vui lòng nhập mã task" }]}
+          >
+            <Input placeholder={`Ví dụ: 12 hoặc ${pKey}-12`} />
           </Form.Item>
 
-          <Form.Item name="hours" label="Số giờ làm việc (Hours)" rules={[{ required: true, message: 'Vui lòng nhập số giờ' }]}>
-            <InputNumber min={0.25} max={24} step={0.5} style={{ width: '100%' }} placeholder="2.5" />
+          <Form.Item
+            name="hours"
+            label="Số giờ làm việc (Hours)"
+            rules={[{ required: true, message: "Vui lòng nhập số giờ" }]}
+          >
+            <InputNumber
+              min={0.25}
+              max={24}
+              step={0.5}
+              style={{ width: "100%" }}
+              placeholder="2.5"
+            />
           </Form.Item>
 
           <Form.Item name="description" label="Nội dung đã hoàn thành">
-            <Input.TextArea rows={3} placeholder="Mô tả chi tiết công việc đã thực hiện..." />
+            <Input.TextArea
+              rows={3}
+              placeholder="Mô tả chi tiết công việc đã thực hiện..."
+            />
           </Form.Item>
         </Form>
       </Modal>

@@ -17,7 +17,7 @@ class WorkspaceController extends Controller
     {
         $user = $request->user();
 
-        $workspaces = $user->role === 'admin'
+        $workspaces = $user->isAdmin()
             ? Workspace::query()->paginate($request->perPage())
             : $user->workspaces()->paginate($request->perPage());
 
@@ -42,7 +42,15 @@ class WorkspaceController extends Controller
             'description'     => 'nullable|string',
         ]);
 
+        $user = $request->user();
+        abort_unless(
+            $user->isAdmin() || $user->workspaces()->where('workspaces.organization_id', $validated['organization_id'])->exists(),
+            403,
+            'Bạn không thuộc tổ chức này.'
+        );
+
         $workspace = Workspace::create($validated);
+        $workspace->members()->attach($user->id, ['role' => 'owner']);
 
         return response()->json(['data' => new WorkspaceResource($workspace)], 201);
     }

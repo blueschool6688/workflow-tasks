@@ -48,6 +48,15 @@ class Project extends Model
             ->first();
     }
 
+    /** Same rule as User::canAccessProject, as a query scope. */
+    public function scopeAccessibleBy($query, User $user)
+    {
+        return $query->where(fn ($q) => $q
+            ->where('lead_id', $user->id)
+            ->orWhereHas('members', fn ($m) => $m->where('users.id', $user->id))
+            ->orWhereIn('workspace_id', $user->workspaces()->select('workspaces.id')));
+    }
+
     public function workspace()
     {
         return $this->belongsTo(Workspace::class);

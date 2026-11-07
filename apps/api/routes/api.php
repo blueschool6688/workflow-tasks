@@ -62,32 +62,33 @@ Route::middleware(['auth:api'])->group(function () {
     // Workspace → Labels
     Route::get('/workspaces/{workspace}/labels', [LabelController::class, 'index']);
     Route::post('/workspaces/{workspace}/labels', [LabelController::class, 'store']);
-    Route::patch('/workspaces/{workspace}/labels/{label}', [LabelController::class, 'update']);
-    Route::delete('/workspaces/{workspace}/labels/{label}', [LabelController::class, 'destroy']);
+    Route::patch('/workspaces/{workspace}/labels/{label}', [LabelController::class, 'update'])->scopeBindings();
+    Route::delete('/workspaces/{workspace}/labels/{label}', [LabelController::class, 'destroy'])->scopeBindings();
 
     // Projects
     Route::apiResource('projects', ProjectController::class);
     Route::get('/projects/{project}/summary', [DashboardController::class, 'projectSummary']);
     Route::get('/projects/{project}/board', [TaskController::class, 'board']);
     Route::get('/projects/{project}/worklogs', [TaskWorkLogController::class, 'projectLogs']);
+    Route::get('/projects/{project}/members', [ProjectController::class, 'members']);
     Route::post('/projects/{project}/members', [ProjectController::class, 'addMember']);
     Route::delete('/projects/{project}/members/{user}', [ProjectController::class, 'removeMember']);
 
     // Project → Sprints
     Route::get('/projects/{project}/sprints', [SprintController::class, 'index']);
     Route::post('/projects/{project}/sprints', [SprintController::class, 'store']);
-    Route::get('/projects/{project}/sprints/{sprint}', [SprintController::class, 'show']);
-    Route::patch('/projects/{project}/sprints/{sprint}', [SprintController::class, 'update']);
-    Route::delete('/projects/{project}/sprints/{sprint}', [SprintController::class, 'destroy']);
-    Route::post('/projects/{project}/sprints/{sprint}/start', [SprintController::class, 'start']);
-    Route::post('/projects/{project}/sprints/{sprint}/complete', [SprintController::class, 'complete']);
+    Route::get('/projects/{project}/sprints/{sprint}', [SprintController::class, 'show'])->scopeBindings();
+    Route::patch('/projects/{project}/sprints/{sprint}', [SprintController::class, 'update'])->scopeBindings();
+    Route::delete('/projects/{project}/sprints/{sprint}', [SprintController::class, 'destroy'])->scopeBindings();
+    Route::post('/projects/{project}/sprints/{sprint}/start', [SprintController::class, 'start'])->scopeBindings();
+    Route::post('/projects/{project}/sprints/{sprint}/complete', [SprintController::class, 'complete'])->scopeBindings();
 
     // Project → Epics
     Route::get('/projects/{project}/epics', [EpicController::class, 'index']);
     Route::post('/projects/{project}/epics', [EpicController::class, 'store']);
-    Route::get('/projects/{project}/epics/{epic}', [EpicController::class, 'show']);
-    Route::patch('/projects/{project}/epics/{epic}', [EpicController::class, 'update']);
-    Route::delete('/projects/{project}/epics/{epic}', [EpicController::class, 'destroy']);
+    Route::get('/projects/{project}/epics/{epic}', [EpicController::class, 'show'])->scopeBindings();
+    Route::patch('/projects/{project}/epics/{epic}', [EpicController::class, 'update'])->scopeBindings();
+    Route::delete('/projects/{project}/epics/{epic}', [EpicController::class, 'destroy'])->scopeBindings();
 
     // Project → Tasks
     Route::get('/projects/{project}/tasks', [TaskController::class, 'index']);
@@ -105,18 +106,18 @@ Route::middleware(['auth:api'])->group(function () {
     // Task → Comments
     Route::get('/tasks/{task}/comments', [TaskCommentController::class, 'index']);
     Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store']);
-    Route::patch('/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'update']);
-    Route::delete('/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy']);
+    Route::patch('/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'update'])->scopeBindings();
+    Route::delete('/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy'])->scopeBindings();
 
     // Task → Work Logs
     Route::get('/tasks/{task}/worklogs', [TaskWorkLogController::class, 'index']);
     Route::post('/tasks/{task}/worklogs', [TaskWorkLogController::class, 'store']);
-    Route::patch('/tasks/{task}/worklogs/{worklog}', [TaskWorkLogController::class, 'update']);
-    Route::delete('/tasks/{task}/worklogs/{worklog}', [TaskWorkLogController::class, 'destroy']);
+    Route::patch('/tasks/{task}/worklogs/{worklog}', [TaskWorkLogController::class, 'update'])->scopeBindings();
+    Route::delete('/tasks/{task}/worklogs/{worklog}', [TaskWorkLogController::class, 'destroy'])->scopeBindings();
 
     // Task → Attachments
     Route::post('/tasks/{task}/attachments', [MediaController::class, 'attachToTask']);
-    Route::delete('/tasks/{task}/attachments/{attachment}', [MediaController::class, 'detachFromTask']);
+    Route::delete('/tasks/{task}/attachments/{attachment}', [MediaController::class, 'detachFromTask'])->scopeBindings();
 
     // Task → Activity
     Route::get('/tasks/{task}/activity', [ActivityLogController::class, 'forTask']);

@@ -1,17 +1,23 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { getProjectsApi, Project } from '../api/projectApi';
-import { ProjectCard } from '../components/ProjectCard';
-import { CreateProjectModal } from '../components/CreateProjectModal';
-import { Input, Select, Button, Spin, Empty, Row, Col } from 'antd';
-import { PlusOutlined, SearchOutlined, FolderOutlined } from '@ant-design/icons';
+import * as React from "react";
+import { getProjectsApi, Project } from "../api/projectApi";
+import { ProjectCard } from "../components/ProjectCard";
+import { CreateProjectModal } from "../components/CreateProjectModal";
+import { Input, Select, Button, Spin, Empty, Row, Col, App } from "antd";
+import { apiErrorMessage } from "@/lib/axios";
+import {
+  PlusOutlined,
+  SearchOutlined,
+  FolderOutlined,
+} from "@ant-design/icons";
 
 export function ProjectListPage() {
+  const { message } = App.useApp();
   const [projects, setProjects] = React.useState<Project[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [search, setSearch] = React.useState('');
-  const [filterType, setFilterType] = React.useState<string>('all');
+  const [search, setSearch] = React.useState("");
+  const [filterType, setFilterType] = React.useState<string>("all");
   const [isModalOpen, setIsModalOpen] = React.useState(false);
 
   const fetchProjects = React.useCallback(async () => {
@@ -19,32 +25,12 @@ export function ProjectListPage() {
     try {
       const data = await getProjectsApi();
       setProjects(data);
-    } catch {
-      // Fallback mock data if API is unseeded
-      setProjects([
-        {
-          id: '1',
-          key: 'CORE-ENG',
-          name: 'Core Product Engineering',
-          description: 'Nền tảng quản lý công việc và quy trình doanh nghiệp tập trung.',
-          type: 'scrum',
-          members_count: 6,
-          updated_at: 'Hôm nay',
-        },
-        {
-          id: '2',
-          key: 'DESIGN',
-          name: 'Product Design & System',
-          description: 'Hệ thống thiết kế Ant Design UI và trải nghiệm người dùng.',
-          type: 'kanban',
-          members_count: 3,
-          updated_at: 'Hôm qua',
-        },
-      ]);
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Không tải được danh sách dự án"));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [message]);
 
   React.useEffect(() => {
     fetchProjects();
@@ -54,7 +40,7 @@ export function ProjectListPage() {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.key.toLowerCase().includes(search.toLowerCase());
-    const matchesType = filterType === 'all' || p.type === filterType;
+    const matchesType = filterType === "all" || p.type === filterType;
     return matchesSearch && matchesType;
   });
 
@@ -100,9 +86,9 @@ export function ProjectListPage() {
           className="w-full sm:w-48"
           size="middle"
           options={[
-            { value: 'all', label: 'Tất cả loại dự án' },
-            { value: 'scrum', label: 'Agile Scrum' },
-            { value: 'kanban', label: 'Kanban Board' },
+            { value: "all", label: "Tất cả loại dự án" },
+            { value: "scrum", label: "Agile Scrum" },
+            { value: "kanban", label: "Kanban Board" },
           ]}
         />
       </div>
@@ -111,7 +97,9 @@ export function ProjectListPage() {
       {isLoading ? (
         <div className="py-20 text-center flex flex-col items-center justify-center gap-3">
           <Spin size="large" />
-          <span className="text-xs text-zinc-500 font-medium">Đang tải danh sách dự án...</span>
+          <span className="text-xs text-zinc-500 font-medium">
+            Đang tải danh sách dự án...
+          </span>
         </div>
       ) : filteredProjects.length === 0 ? (
         <div className="py-16 text-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl">

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 import {
   Card,
   Table,
@@ -13,10 +13,10 @@ import {
   Modal,
   Form,
   DatePicker,
-  Popconfirm,
   Dropdown,
+  Select,
   App,
-} from 'antd';
+} from "antd";
 import {
   UnorderedListOutlined,
   PlusOutlined,
@@ -26,14 +26,15 @@ import {
   BranchesOutlined,
   DeleteOutlined,
   AppstoreOutlined,
-} from '@ant-design/icons';
-import dayjs from 'dayjs';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/axios';
-import { TaskDetailModal } from '@/features/tasks/components/TaskDetailModal';
-import { CreateTaskModal } from '@/features/tasks/components/CreateTaskModal';
-import { BoardFilterBar } from '@/features/board/components/BoardFilterBar';
-import { KanbanTask } from '@/features/board/api/boardApi';
+} from "@ant-design/icons";
+import dayjs from "dayjs";
+import { useSearchParams, useRouter } from "next/navigation";
+import { api, apiErrorMessage, fetchAllPages } from "@/lib/axios";
+import { TaskDetailModal } from "@/features/tasks/components/TaskDetailModal";
+import { CreateTaskModal } from "@/features/tasks/components/CreateTaskModal";
+import { BoardFilterBar } from "@/features/board/components/BoardFilterBar";
+import { KanbanTask } from "@/features/board/api/boardApi";
+import { useProjectTaskEvents } from "@/features/board/api/useProjectTaskEvents";
 
 interface BacklogTaskItem {
   key: string;
@@ -42,16 +43,17 @@ interface BacklogTaskItem {
   title: string;
   points: number;
   status: string;
-  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  priority?: "low" | "medium" | "high" | "urgent";
   assignee: string;
   sprint_id?: string | null;
+  done?: boolean;
 }
 
 interface SprintItem {
   id: string;
   name: string;
   goal?: string;
-  status: 'active' | 'future' | 'completed';
+  status: "active" | "future" | "completed";
   start_date?: string;
   end_date?: string;
 }
@@ -61,8 +63,10 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
   const router = useRouter();
   const pKey = projectKey.toUpperCase();
   const searchParams = useSearchParams();
-  const sprintIdParam = searchParams.get('sprintId');
-  const [selectedSprintFilter, setSelectedSprintFilter] = React.useState<string | null>(sprintIdParam);
+  const sprintIdParam = searchParams.get("sprintId");
+  const [selectedSprintFilter, setSelectedSprintFilter] = React.useState<
+    string | null
+  >(sprintIdParam);
 
   React.useEffect(() => {
     if (sprintIdParam) {
@@ -71,92 +75,72 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
   }, [sprintIdParam]);
 
   const [loading, setLoading] = React.useState(true);
-  const [sprints, setSprints] = React.useState<SprintItem[]>([
-    {
-      id: 'sprint-24',
-      name: 'Sprint 24 (Sprint Hiện Tại)',
-      goal: 'Hoàn thiện hệ thống xác thực, phân quyền và giao diện Task Detail.',
-      status: 'active',
-      start_date: '2026-08-15',
-      end_date: '2026-08-29',
-    },
-    {
-      id: 'sprint-25',
-      name: 'Sprint 25 (Kế hoạch tiếp theo)',
-      goal: 'Tích hợp cổng thông báo Reverb WebSockets và xuất báo cáo PDF/Excel.',
-      status: 'future',
-      start_date: '2026-08-30',
-      end_date: '2026-09-13',
-    },
-  ]);
+  const [sprints, setSprints] = React.useState<SprintItem[]>([]);
 
   const [tasks, setTasks] = React.useState<BacklogTaskItem[]>([]);
-  const [newTaskTitle, setNewTaskTitle] = React.useState('');
+  const [newTaskTitle, setNewTaskTitle] = React.useState("");
   const [creating, setCreating] = React.useState(false);
 
   // Filters
-  const [search, setSearch] = React.useState('');
-  const [selectedPriority, setSelectedPriority] = React.useState<string | null>(null);
-  const [selectedStatus, setSelectedStatus] = React.useState<string | null>(null);
-  const [selectedAssignee, setSelectedAssignee] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState("");
+  const [selectedPriority, setSelectedPriority] = React.useState<string | null>(
+    null
+  );
+  const [selectedStatus, setSelectedStatus] = React.useState<string | null>(
+    null
+  );
+  const [selectedAssignee, setSelectedAssignee] = React.useState<string | null>(
+    null
+  );
 
   // Modals
-  const [selectedTask, setSelectedTask] = React.useState<KanbanTask | null>(null);
-  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = React.useState(false);
-  const [isCreateSprintModalOpen, setIsCreateSprintModalOpen] = React.useState(false);
+  const [selectedTask, setSelectedTask] = React.useState<KanbanTask | null>(
+    null
+  );
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] =
+    React.useState(false);
+  const [isCreateSprintModalOpen, setIsCreateSprintModalOpen] =
+    React.useState(false);
   const [sprintForm] = Form.useForm();
+  const [completingSprint, setCompletingSprint] =
+    React.useState<SprintItem | null>(null);
+  const [completeTarget, setCompleteTarget] = React.useState<string>("backlog");
+  const [sprintBusy, setSprintBusy] = React.useState(false);
 
   const fetchProjectData = React.useCallback(async () => {
     try {
       setLoading(true);
-      // Fetch Sprints
-      try {
-        const sprintRes = await api.get(`/projects/${projectKey}/sprints`);
-        if (sprintRes.data?.data && sprintRes.data.data.length > 0) {
-          setSprints(sprintRes.data.data);
-        }
-      } catch {
-        // Keep default sprints
-      }
-
-      // Fetch Tasks
-      const res = await api.get(`/projects/${projectKey}/tasks`);
-      const allTasks: any[] = res.data.data || res.data || [];
-
-      if (allTasks.length > 0) {
-        setTasks(
-          allTasks.map((t) => ({
-            key: t.id?.toString() || Math.random().toString(),
-            id: t.id?.toString(),
-            task_number: t.task_number || t.id,
-            title: t.title,
-            points: t.estimate_minutes ? Math.round(t.estimate_minutes / 60) : 3,
-            status: t.status?.name || 'Todo',
-            priority: t.priority || 'medium',
-            assignee: t.assignee?.name || 'Chưa giao',
-            sprint_id: t.sprint_id || null,
-          }))
-        );
-      } else {
-        // Mock fallback
-        setTasks([
-          { key: '1', id: '1', task_number: `${pKey}-110`, title: 'Thiết kế Schema Workflow Status Engine', points: 5, status: 'In Progress', priority: 'high', assignee: 'Alex Rivera', sprint_id: 'sprint-24' },
-          { key: '2', id: '2', task_number: `${pKey}-111`, title: 'Tạo API CRUD cho Sprint & Epic Lifecycle', points: 3, status: 'Todo', priority: 'medium', assignee: 'Nguyễn Văn A', sprint_id: 'sprint-24' },
-          { key: '3', id: '3', task_number: `${pKey}-112`, title: 'Tích hợp Tiptap Markdown & Mention Editor', points: 8, status: 'Todo', priority: 'urgent', assignee: 'Trần Thị B', sprint_id: 'sprint-25' },
-          { key: '4', id: '4', task_number: `${pKey}-113`, title: 'Tối ưu hóa performance load Kanban Board', points: 5, status: 'Todo', priority: 'medium', assignee: 'David Le', sprint_id: null },
-          { key: '5', id: '5', task_number: `${pKey}-114`, title: 'Xây dựng hệ thống Audit Log hoạt động dự án', points: 3, status: 'Todo', priority: 'low', assignee: 'Sarah Connor', sprint_id: null },
-        ]);
-      }
-    } catch {
-      // Fallback
+      const [sprintRes, allTasks] = await Promise.all([
+        api.get(`/projects/${projectKey}/sprints`),
+        fetchAllPages<any>(`/projects/${projectKey}/tasks`),
+      ]);
+      setSprints(sprintRes.data?.data ?? []);
+      setTasks(
+        allTasks.map((t) => ({
+          key: String(t.id),
+          id: String(t.id),
+          task_number: t.task_number,
+          title: t.title,
+          points: t.estimate_minutes ? Math.round(t.estimate_minutes / 60) : 0,
+          status: t.status?.name || "Todo",
+          priority: t.priority || "medium",
+          assignee: t.assignee?.name || "Chưa giao",
+          sprint_id: t.sprint_id || null,
+          done: t.status?.category === "done",
+        }))
+      );
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Không tải được dữ liệu Backlog"));
     } finally {
       setLoading(false);
     }
-  }, [projectKey, pKey]);
+  }, [projectKey, message]);
 
   React.useEffect(() => {
     fetchProjectData();
   }, [fetchProjectData]);
+
+  useProjectTaskEvents(projectKey, fetchProjectData);
 
   // Handle Quick Create Backlog Task
   const handleAddBacklogTask = async () => {
@@ -166,90 +150,116 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
       setCreating(true);
       const res = await api.post(`/projects/${projectKey}/tasks`, {
         title: newTaskTitle.trim(),
-        type: 'task',
-        priority: 'medium',
+        type: "task",
+        priority: "medium",
       });
-      const created = res.data.data || res.data;
+      const created = res.data.data;
       const newItem: BacklogTaskItem = {
-        key: created.id?.toString() || Date.now().toString(),
-        id: created.id?.toString() || Date.now().toString(),
-        task_number: created.task_number || `${pKey}-${Math.floor(100 + Math.random() * 800)}`,
-        title: created.title || newTaskTitle,
-        points: 3,
-        status: created.status?.name || 'Todo',
-        priority: 'medium',
-        assignee: created.assignee?.name || 'Chưa giao',
+        key: String(created.id),
+        id: String(created.id),
+        task_number: created.task_number,
+        title: created.title,
+        points: 0,
+        status: created.status?.name || "Todo",
+        priority: "medium",
+        assignee: created.assignee?.name || "Chưa giao",
         sprint_id: null,
       };
       setTasks((prev) => [...prev, newItem]);
-      setNewTaskTitle('');
+      setNewTaskTitle("");
       message.success(`Đã thêm task ${newItem.task_number} vào Backlog!`);
-    } catch {
-      const newNum = `${pKey}-${Math.floor(115 + Math.random() * 800)}`;
-      const newItem: BacklogTaskItem = {
-        key: Date.now().toString(),
-        id: Date.now().toString(),
-        task_number: newNum,
-        title: newTaskTitle,
-        points: 3,
-        status: 'Todo',
-        priority: 'medium',
-        assignee: 'Chưa giao',
-        sprint_id: null,
-      };
-      setTasks((prev) => [...prev, newItem]);
-      setNewTaskTitle('');
-      message.success(`Đã thêm task ${newNum} vào Backlog`);
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Không thể tạo task"));
     } finally {
       setCreating(false);
     }
   };
 
   // Move task to different Sprint or Backlog
-  const handleMoveTaskToSprint = async (taskId: string, targetSprintId: string | null) => {
+  const handleMoveTaskToSprint = async (
+    taskId: string,
+    targetSprintId: string | null
+  ) => {
+    const previous = tasks;
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, sprint_id: targetSprintId } : t))
+      prev.map((t) =>
+        t.id === taskId ? { ...t, sprint_id: targetSprintId } : t
+      )
     );
     try {
       await api.patch(`/tasks/${taskId}`, { sprint_id: targetSprintId });
-      message.success('Đã cập nhật chu kỳ Sprint của task');
-    } catch {
-      message.success('Đã chuyển task sang Sprint');
+      message.success("Đã cập nhật chu kỳ Sprint của task");
+    } catch (error) {
+      setTasks(previous);
+      message.error(apiErrorMessage(error, "Không thể chuyển task"));
     }
   };
 
   // Sprint Actions
   const handleCreateSprint = async (values: any) => {
     try {
-      const newSprint: SprintItem = {
-        id: `sprint-${Date.now()}`,
+      setSprintBusy(true);
+      const res = await api.post(`/projects/${projectKey}/sprints`, {
         name: values.name.trim(),
-        goal: values.goal?.trim(),
-        status: 'future',
-        start_date: values.dateRange ? values.dateRange[0].format('YYYY-MM-DD') : undefined,
-        end_date: values.dateRange ? values.dateRange[1].format('YYYY-MM-DD') : undefined,
-      };
-      setSprints((prev) => [...prev, newSprint]);
-      message.success(`Đã tạo Sprint "${newSprint.name}" thành công!`);
+        goal: values.goal?.trim() || null,
+        start_date: values.dateRange?.[0]?.format("YYYY-MM-DD") ?? null,
+        end_date: values.dateRange?.[1]?.format("YYYY-MM-DD") ?? null,
+      });
+      setSprints((prev) => [...prev, res.data.data]);
+      message.success(`Đã tạo Sprint "${res.data.data.name}" thành công!`);
       sprintForm.resetFields();
       setIsCreateSprintModalOpen(false);
-    } catch {
-      message.error('Không thể tạo Sprint');
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Không thể tạo Sprint"));
+    } finally {
+      setSprintBusy(false);
     }
   };
 
-  const handleStartSprint = (sprintId: string) => {
-    setSprints((prev) =>
-      prev.map((s) => (s.id === sprintId ? { ...s, status: 'active' } : s))
-    );
-    message.success('Đã bắt đầu Sprint!');
+  const handleStartSprint = async (sprintId: string) => {
+    try {
+      setSprintBusy(true);
+      const res = await api.post(
+        `/projects/${projectKey}/sprints/${sprintId}/start`
+      );
+      setSprints((prev) =>
+        prev.map((s) => (s.id === sprintId ? res.data.data : s))
+      );
+      message.success("Đã bắt đầu Sprint!");
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Không thể bắt đầu Sprint"));
+    } finally {
+      setSprintBusy(false);
+    }
   };
 
-  const handleCompleteSprint = (sprintId: string) => {
-    setSprints((prev) =>
-      prev.map((s) => (s.id === sprintId ? { ...s, status: 'completed' } : s))
-    );
-    message.success('Đã hoàn thành Sprint và chuyển giao công việc!');
+  const handleCompleteSprint = async () => {
+    if (!completingSprint) return;
+    try {
+      setSprintBusy(true);
+      const res = await api.post(
+        `/projects/${projectKey}/sprints/${completingSprint.id}/complete`,
+        {
+          move_to: completeTarget === "backlog" ? null : completeTarget,
+        }
+      );
+      message.success(
+        `Đã hoàn tất Sprint. ${res.data.moved_count} task chưa xong đã được chuyển ${
+          completeTarget === "backlog" ? "về Backlog" : "sang Sprint kế tiếp"
+        }.`
+      );
+      setCompletingSprint(null);
+      await fetchProjectData();
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Không thể hoàn tất Sprint"));
+    } finally {
+      setSprintBusy(false);
+    }
+  };
+
+  const openCompleteSprint = (sprint: SprintItem) => {
+    setCompleteTarget("backlog");
+    setCompletingSprint(sprint);
   };
 
   const handleRowClick = (record: BacklogTaskItem) => {
@@ -258,7 +268,7 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
       task_number: record.task_number,
       title: record.title,
       status: record.status.toLowerCase(),
-      priority: record.priority || 'medium',
+      priority: record.priority || "medium",
       assignee: { name: record.assignee },
     });
   };
@@ -268,30 +278,41 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
     const matchesSearch =
       t.title.toLowerCase().includes(search.toLowerCase()) ||
       t.task_number.toLowerCase().includes(search.toLowerCase());
-    const matchesPriority = !selectedPriority || t.priority === selectedPriority;
+    const matchesPriority =
+      !selectedPriority || t.priority === selectedPriority;
     const matchesStatus =
-      !selectedStatus || t.status.toLowerCase().includes(selectedStatus.toLowerCase());
+      !selectedStatus ||
+      t.status.toLowerCase().includes(selectedStatus.toLowerCase());
     const matchesAssignee =
-      !selectedAssignee || t.assignee.toLowerCase().includes(selectedAssignee.toLowerCase());
+      !selectedAssignee ||
+      t.assignee.toLowerCase().includes(selectedAssignee.toLowerCase());
     return matchesSearch && matchesPriority && matchesStatus && matchesAssignee;
   });
 
-  const activeSprint = sprints.find((s) => s.status === 'active' && (!selectedSprintFilter || s.id === selectedSprintFilter));
-  const futureSprints = sprints.filter((s) => s.status === 'future' && (!selectedSprintFilter || s.id === selectedSprintFilter));
+  const activeSprint = sprints.find(
+    (s) =>
+      s.status === "active" &&
+      (!selectedSprintFilter || s.id === selectedSprintFilter)
+  );
+  const futureSprints = sprints.filter(
+    (s) =>
+      s.status === "future" &&
+      (!selectedSprintFilter || s.id === selectedSprintFilter)
+  );
   const showBacklog = !selectedSprintFilter;
 
   const getSprintColumns = (currentSprintId: string | null) => [
     {
-      title: 'Mã task',
-      dataIndex: 'task_number',
-      key: 'task_number',
+      title: "Mã task",
+      dataIndex: "task_number",
+      key: "task_number",
       width: 130,
       render: (text: string) => <Tag color="indigo">{text}</Tag>,
     },
     {
-      title: 'Tên công việc',
-      dataIndex: 'title',
-      key: 'title',
+      title: "Tên công việc",
+      dataIndex: "title",
+      key: "title",
       render: (text: string) => (
         <span className="font-semibold text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 cursor-pointer transition-colors">
           {text}
@@ -299,28 +320,32 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
       ),
     },
     {
-      title: 'Points',
-      dataIndex: 'points',
-      key: 'points',
+      title: "Points",
+      dataIndex: "points",
+      key: "points",
       width: 90,
       render: (pts: number) => <Tag color="blue">{pts} pts</Tag>,
     },
     {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
       width: 140,
       render: (st: string) => {
-        let color = 'default';
-        if (st.toLowerCase().includes('progress')) color = 'processing';
-        if (st.toLowerCase().includes('done') || st.toLowerCase().includes('complete')) color = 'success';
+        let color = "default";
+        if (st.toLowerCase().includes("progress")) color = "processing";
+        if (
+          st.toLowerCase().includes("done") ||
+          st.toLowerCase().includes("complete")
+        )
+          color = "success";
         return <Tag color={color}>{st}</Tag>;
       },
     },
     {
-      title: 'Người thực hiện',
-      dataIndex: 'assignee',
-      key: 'assignee',
+      title: "Người thực hiện",
+      dataIndex: "assignee",
+      key: "assignee",
       width: 160,
       render: (name: string) => (
         <span className="text-xs text-zinc-500 flex items-center gap-1.5">
@@ -332,15 +357,22 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
       ),
     },
     {
-      title: 'Chuyển Sprint',
-      key: 'move',
+      title: "Chuyển Sprint",
+      key: "move",
       width: 140,
       render: (_: any, record: BacklogTaskItem) => (
         <Dropdown
           menu={{
             items: [
               ...(activeSprint && activeSprint.id !== currentSprintId
-                ? [{ key: activeSprint.id, label: `👉 Chuyển sang ${activeSprint.name}`, onClick: () => handleMoveTaskToSprint(record.id, activeSprint.id) }]
+                ? [
+                    {
+                      key: activeSprint.id,
+                      label: `👉 Chuyển sang ${activeSprint.name}`,
+                      onClick: () =>
+                        handleMoveTaskToSprint(record.id, activeSprint.id),
+                    },
+                  ]
                 : []),
               ...futureSprints
                 .filter((s) => s.id !== currentSprintId)
@@ -350,7 +382,13 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
                   onClick: () => handleMoveTaskToSprint(record.id, s.id),
                 })),
               ...(currentSprintId !== null
-                ? [{ key: 'backlog', label: '📦 Chuyển về Backlog', onClick: () => handleMoveTaskToSprint(record.id, null) }]
+                ? [
+                    {
+                      key: "backlog",
+                      label: "📦 Chuyển về Backlog",
+                      onClick: () => handleMoveTaskToSprint(record.id, null),
+                    },
+                  ]
                 : []),
             ],
           }}
@@ -408,7 +446,7 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
         selectedAssignee={selectedAssignee}
         onAssigneeChange={setSelectedAssignee}
         onClear={() => {
-          setSearch('');
+          setSearch("");
           setSelectedPriority(null);
           setSelectedStatus(null);
           setSelectedAssignee(null);
@@ -420,12 +458,20 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
       {selectedSprintFilter && (
         <div className="flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs">
           <div className="flex items-center gap-2">
-            <Tag color="indigo" className="m-0 font-semibold">Đang lọc theo Sprint</Tag>
+            <Tag color="indigo" className="m-0 font-semibold">
+              Đang lọc theo Sprint
+            </Tag>
             <span className="text-zinc-800 dark:text-zinc-200 font-bold">
-              {sprints.find((s) => s.id === selectedSprintFilter)?.name || selectedSprintFilter}
+              {sprints.find((s) => s.id === selectedSprintFilter)?.name ||
+                selectedSprintFilter}
             </span>
           </div>
-          <Button size="small" type="link" onClick={() => setSelectedSprintFilter(null)} className="p-0 text-xs">
+          <Button
+            size="small"
+            type="link"
+            onClick={() => setSelectedSprintFilter(null)}
+            className="p-0 text-xs"
+          >
             ✕ Bỏ lọc (Hiển thị tất cả)
           </Button>
         </div>
@@ -443,9 +489,11 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-zinc-500">
-                  Tổng điểm:{' '}
+                  Tổng điểm:{" "}
                   <strong className="text-zinc-900 dark:text-zinc-100">
-                    {filteredTasks.filter((t) => t.sprint_id === activeSprint.id).reduce((acc, c) => acc + c.points, 0)}{' '}
+                    {filteredTasks
+                      .filter((t) => t.sprint_id === activeSprint.id)
+                      .reduce((acc, c) => acc + c.points, 0)}{" "}
                     pts
                   </strong>
                 </span>
@@ -453,21 +501,20 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
                   type="primary"
                   icon={<AppstoreOutlined />}
                   className="bg-indigo-600"
-                  onClick={() => router.push(`/projects/${projectKey}/sprints/${activeSprint.id}/board`)}
+                  onClick={() =>
+                    router.push(
+                      `/projects/${projectKey}/sprints/${activeSprint.id}/board`
+                    )
+                  }
                 >
                   Xem Bảng Board
                 </Button>
-                <Popconfirm
-                  title="Xác nhận hoàn tất Sprint này?"
-                  description="Các task dở dang sẽ được chuyển giao sang Sprint tiếp theo."
-                  onConfirm={() => handleCompleteSprint(activeSprint.id)}
-                  okText="Hoàn tất"
-                  cancelText="Hủy"
+                <Button
+                  icon={<CheckCircleOutlined className="text-emerald-500" />}
+                  onClick={() => openCompleteSprint(activeSprint)}
                 >
-                  <Button icon={<CheckCircleOutlined className="text-emerald-500" />}>
-                    Hoàn tất Sprint
-                  </Button>
-                </Popconfirm>
+                  Hoàn tất Sprint
+                </Button>
               </div>
             </div>
           }
@@ -480,7 +527,9 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
           )}
 
           <Table
-            dataSource={filteredTasks.filter((t) => t.sprint_id === activeSprint.id)}
+            dataSource={filteredTasks.filter(
+              (t) => t.sprint_id === activeSprint.id
+            )}
             columns={getSprintColumns(activeSprint.id)}
             pagination={false}
             size="middle"
@@ -489,15 +538,24 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
             onRow={(record) => ({
               onClick: () => handleRowClick(record),
             })}
-            locale={{ emptyText: <Empty description="Chưa có task trong Sprint đang diễn ra" /> }}
+            locale={{
+              emptyText: (
+                <Empty description="Chưa có task trong Sprint đang diễn ra" />
+              ),
+            }}
           />
         </Card>
       )}
 
       {/* Future Sprints */}
       {futureSprints.map((sprint) => {
-        const sprintTasksList = filteredTasks.filter((t) => t.sprint_id === sprint.id);
-        const sprintPoints = sprintTasksList.reduce((acc, c) => acc + c.points, 0);
+        const sprintTasksList = filteredTasks.filter(
+          (t) => t.sprint_id === sprint.id
+        );
+        const sprintPoints = sprintTasksList.reduce(
+          (acc, c) => acc + c.points,
+          0
+        );
 
         return (
           <Card
@@ -511,12 +569,22 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-zinc-500">
-                    Tổng điểm: <strong className="text-zinc-900 dark:text-zinc-100">{sprintPoints} pts</strong>
+                    Tổng điểm:{" "}
+                    <strong className="text-zinc-900 dark:text-zinc-100">
+                      {sprintPoints} pts
+                    </strong>
                   </span>
                   <Button
                     type="primary"
                     icon={<PlayCircleOutlined />}
                     className="bg-emerald-600 text-xs"
+                    loading={sprintBusy}
+                    disabled={!!sprints.find((s) => s.status === "active")}
+                    title={
+                      sprints.find((s) => s.status === "active")
+                        ? "Hãy hoàn tất Sprint đang diễn ra trước"
+                        : undefined
+                    }
                     onClick={() => handleStartSprint(sprint.id)}
                   >
                     Bắt đầu Sprint
@@ -542,7 +610,11 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
               onRow={(record) => ({
                 onClick: () => handleRowClick(record),
               })}
-              locale={{ emptyText: <Empty description="Chưa có task nào trong Sprint này" /> }}
+              locale={{
+                emptyText: (
+                  <Empty description="Chưa có task nào trong Sprint này" />
+                ),
+              }}
             />
           </Card>
         );
@@ -554,7 +626,8 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
           title={
             <div className="flex items-center justify-between py-1">
               <span className="font-bold text-base">
-                Backlog ({filteredTasks.filter((t) => !t.sprint_id).length} công việc chưa phân Sprint)
+                Backlog ({filteredTasks.filter((t) => !t.sprint_id).length} công
+                việc chưa phân Sprint)
               </span>
             </div>
           }
@@ -633,33 +706,90 @@ export function BacklogPage({ projectKey }: { projectKey: string }) {
           onFinish={handleCreateSprint}
           initialValues={{
             name: `Sprint ${sprints.length + 24}`,
-            dateRange: [dayjs(), dayjs().add(14, 'day')],
+            dateRange: [dayjs(), dayjs().add(14, "day")],
           }}
           className="mt-4 space-y-3"
         >
           <Form.Item
             label="Tên Sprint"
             name="name"
-            rules={[{ required: true, message: 'Vui lòng nhập tên Sprint' }]}
+            rules={[{ required: true, message: "Vui lòng nhập tên Sprint" }]}
           >
-            <Input placeholder="Ví dụ: Sprint 26 - Release Module Báo cáo" size="large" />
+            <Input
+              placeholder="Ví dụ: Sprint 26 - Release Module Báo cáo"
+              size="large"
+            />
           </Form.Item>
 
           <Form.Item label="Thời gian thực hiện (2 tuần)" name="dateRange">
-            <DatePicker.RangePicker className="w-full" format="DD/MM/YYYY" size="large" />
+            <DatePicker.RangePicker
+              className="w-full"
+              format="DD/MM/YYYY"
+              size="large"
+            />
           </Form.Item>
 
           <Form.Item label="Mục tiêu Sprint (Sprint Goal)" name="goal">
-            <Input.TextArea rows={3} placeholder="Mô tả mục tiêu trọng tâm của Sprint..." />
+            <Input.TextArea
+              rows={3}
+              placeholder="Mô tả mục tiêu trọng tâm của Sprint..."
+            />
           </Form.Item>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-            <Button onClick={() => setIsCreateSprintModalOpen(false)}>Hủy</Button>
-            <Button type="primary" htmlType="submit" className="bg-indigo-600">
+            <Button onClick={() => setIsCreateSprintModalOpen(false)}>
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              className="bg-indigo-600"
+              loading={sprintBusy}
+            >
               Tạo Sprint
             </Button>
           </div>
         </Form>
+      </Modal>
+
+      {/* Complete Sprint Modal */}
+      <Modal
+        title={`Hoàn tất ${completingSprint?.name ?? "Sprint"}`}
+        open={!!completingSprint}
+        onCancel={() => setCompletingSprint(null)}
+        onOk={handleCompleteSprint}
+        okText="Hoàn tất Sprint"
+        cancelText="Hủy"
+        confirmLoading={sprintBusy}
+        destroyOnHidden
+      >
+        {completingSprint && (
+          <div className="space-y-3 mt-3">
+            <p className="text-sm text-zinc-600 dark:text-zinc-300 m-0">
+              Sprint còn{" "}
+              <strong>
+                {
+                  tasks.filter(
+                    (t) => t.sprint_id === completingSprint.id && !t.done
+                  ).length
+                }
+              </strong>{" "}
+              task chưa xong. Chuyển chúng tới:
+            </p>
+            <Select
+              className="w-full"
+              size="large"
+              value={completeTarget}
+              onChange={setCompleteTarget}
+              options={[
+                { value: "backlog", label: "📦 Backlog" },
+                ...sprints
+                  .filter((s) => s.status === "future")
+                  .map((s) => ({ value: s.id, label: `👉 ${s.name}` })),
+              ]}
+            />
+          </div>
+        )}
       </Modal>
     </div>
   );

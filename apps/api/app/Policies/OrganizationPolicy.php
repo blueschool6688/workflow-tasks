@@ -9,11 +9,7 @@ class OrganizationPolicy
 {
     public function before(User $user, string $ability): ?bool
     {
-        if ($user->role === 'admin' || $user->hasRole('super-admin') || $user->hasRole('admin') || $user->email === 'admin@tasks.local') {
-            return true;
-        }
-
-        return null;
+        return $user->isAdmin() ? true : null;
     }
 
     public function viewAny(User $user): bool
@@ -23,7 +19,7 @@ class OrganizationPolicy
 
     public function view(User $user, Organization $organization): bool
     {
-        return true;
+        return $user->workspaces()->where('workspaces.organization_id', $organization->id)->exists();
     }
 
     public function create(User $user): bool

@@ -12,12 +12,10 @@ class EpicResource extends JsonResource
         return [
             'id'          => $this->id,
             'project_id'  => $this->project_id,
-            'title'       => $this->title,
-            'description' => $this->description,
+            'title'       => $this->name,
+            'description' => $this->summary,
             'color'       => $this->color,
-            'status'      => $this->status,
-            'start_date'  => $this->start_date?->toDateString(),
-            'end_date'    => $this->end_date?->toDateString(),
+            'tasks_count' => $this->whenCounted('tasks'),
             'created_at'  => $this->created_at?->toIso8601String(),
         ];
     }

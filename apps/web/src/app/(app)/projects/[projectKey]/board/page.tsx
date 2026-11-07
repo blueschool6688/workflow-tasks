@@ -1,29 +1,22 @@
-import { redirect } from 'next/navigation';
-import { api } from '@/lib/axios';
+import { KanbanBoardPage } from "@/features/board/pages/KanbanBoardPage";
 
-export async function generateMetadata({ params }: { params: Promise<{ projectKey: string }> }) {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ projectKey: string }>;
+}) {
   const { projectKey } = await params;
   return {
     title: `Bảng Kanban — ${projectKey.toUpperCase()} — Tasks`,
   };
 }
 
-export default async function ProjectBoardRoutePage({ params }: { params: Promise<{ projectKey: string }> }) {
+// The auth token lives in the browser, so the active sprint is picked client-side by KanbanBoardPage.
+export default async function ProjectBoardRoutePage({
+  params,
+}: {
+  params: Promise<{ projectKey: string }>;
+}) {
   const { projectKey } = await params;
-
-  let activeSprintId = 'sprint-24';
-  try {
-    const res = await api.get(`/projects/${projectKey}/sprints`);
-    const sprints = res.data?.data || [];
-    const active = sprints.find((s: any) => s.status === 'active');
-    if (active) {
-      activeSprintId = active.id;
-    } else if (sprints.length > 0) {
-      activeSprintId = sprints[0].id;
-    }
-  } catch {
-    // Fallback default
-  }
-
-  redirect(`/projects/${projectKey}/sprints/${activeSprintId}/board`);
+  return <KanbanBoardPage projectKey={projectKey} />;
 }

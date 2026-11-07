@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 import {
   ProjectChatMessage,
   ProjectTaskRef,
@@ -12,9 +12,13 @@ import {
   sendTypingSignalApi,
   fetchAccessibleProjectsApi,
   ProjectSummaryOption,
-} from '@/features/chat/api/projectChatApi';
-import { useAuthStore } from '@/stores/authStore';
-import { getEcho, subscribeSocketStatus, SocketConnectionStatus } from '@/lib/echoService';
+} from "@/features/chat/api/projectChatApi";
+import { useAuthStore } from "@/stores/authStore";
+import {
+  getEcho,
+  subscribeSocketStatus,
+  SocketConnectionStatus,
+} from "@/lib/echoService";
 
 export interface TypingUser {
   id: number | string;
@@ -75,7 +79,10 @@ interface ProjectChatState {
 
   // Real-time Event Handlers
   receiveMessage: (rawEvent: unknown) => void;
-  handlePinEvent: (data: { is_pinned: boolean; message: ProjectChatMessage | null }) => void;
+  handlePinEvent: (data: {
+    is_pinned: boolean;
+    message: ProjectChatMessage | null;
+  }) => void;
   handleTypingEvent: (user: TypingUser, isTyping: boolean) => void;
   sendTypingThrottled: () => void;
   stopTypingImmediately: () => void;
@@ -103,7 +110,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
   isSending: false,
   isUploadingAttachment: false,
   subscribedChannelNames: [],
-  socketStatus: 'disconnected',
+  socketStatus: "disconnected",
   lastTypingSentAt: 0,
   typingStopTimer: null,
 
@@ -135,12 +142,14 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     } else if (accessibleProjects.length > 0) {
       get().openChat(accessibleProjects[0].id, accessibleProjects[0].key);
     } else {
-      get().loadAccessibleProjects().then(() => {
-        const projs = get().accessibleProjects;
-        if (projs.length > 0) {
-          get().openChat(projs[0].id, projs[0].key);
-        }
-      });
+      get()
+        .loadAccessibleProjects()
+        .then(() => {
+          const projs = get().accessibleProjects;
+          if (projs.length > 0) {
+            get().openChat(projs[0].id, projs[0].key);
+          }
+        });
     }
   },
 
@@ -196,7 +205,9 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
       });
 
       // Bind channel to canonical project UUID once received
-      const canonicalId = res.project?.id || (res.data && res.data.length > 0 ? res.data[0].project_id : null);
+      const canonicalId =
+        res.project?.id ||
+        (res.data && res.data.length > 0 ? res.data[0].project_id : null);
       if (canonicalId) {
         get().subscribeToProjectChannel(canonicalId);
       }
@@ -208,17 +219,24 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
   },
 
   loadOlderMessages: async () => {
-    const { currentProjectId, nextCursor, hasMore, isLoadingMore, messages } = get();
+    const { currentProjectId, nextCursor, hasMore, isLoadingMore, messages } =
+      get();
     if (!currentProjectId || !hasMore || !nextCursor || isLoadingMore) return;
 
     try {
       set({ isLoadingMore: true });
-      const res = await fetchProjectMessagesApi(currentProjectId, nextCursor, 50);
+      const res = await fetchProjectMessagesApi(
+        currentProjectId,
+        nextCursor,
+        50
+      );
       const olderMessages = res.data || [];
 
       // Prepend older messages while strictly deduplicating by ID
       const existingIds = new Set(messages.map((m) => String(m.id)));
-      const filteredOlder = olderMessages.filter((m) => !existingIds.has(String(m.id)));
+      const filteredOlder = olderMessages.filter(
+        (m) => !existingIds.has(String(m.id))
+      );
 
       set({
         messages: [...filteredOlder, ...messages],
@@ -226,7 +244,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
         nextCursor: res.pagination?.next_cursor ?? null,
       });
     } catch (e) {
-      console.error('[Chat] Failed to load older messages:', e);
+      console.error("[Chat] Failed to load older messages:", e);
     } finally {
       set({ isLoadingMore: false });
     }
@@ -243,7 +261,7 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
         selectedAttachments: [...state.selectedAttachments, attachment],
       }));
     } catch (e) {
-      console.error('Failed to upload attachment', e);
+      console.error("Failed to upload attachment", e);
     } finally {
       set({ isUploadingAttachment: false });
     }
@@ -251,7 +269,9 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
 
   removeAttachment: (index: number) => {
     set((state) => ({
-      selectedAttachments: state.selectedAttachments.filter((_, i) => i !== index),
+      selectedAttachments: state.selectedAttachments.filter(
+        (_, i) => i !== index
+      ),
     }));
   },
 
@@ -268,7 +288,8 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     if (!currentUser) return;
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const attachmentsToSend = selectedAttachments.length > 0 ? [...selectedAttachments] : undefined;
+    const attachmentsToSend =
+      selectedAttachments.length > 0 ? [...selectedAttachments] : undefined;
 
     const optimisticMessage: ProjectChatMessage = {
       id: tempId,
@@ -283,13 +304,13 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
             content: replyingTo.content,
             user: {
               id: replyingTo.user?.id || 0,
-              name: replyingTo.user?.name || '',
+              name: replyingTo.user?.name || "",
             },
           }
         : null,
       user: {
         id: currentUser.id,
-        name: currentUser.name || 'User',
+        name: currentUser.name || "User",
         avatar: currentUser.avatar_url || null,
       },
       created_at: new Date().toISOString(),
@@ -311,11 +332,13 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
       );
 
       set((state) => ({
-        messages: state.messages.map((m) => (m.id === tempId ? realMessage : m)),
+        messages: state.messages.map((m) =>
+          m.id === tempId ? realMessage : m
+        ),
         isSending: false,
       }));
     } catch (err: unknown) {
-      console.error('[Chat] Failed to send message:', err);
+      console.error("[Chat] Failed to send message:", err);
       set((state) => ({
         messages: state.messages.filter((m) => m.id !== tempId),
         isSending: false,
@@ -363,7 +386,10 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
   receiveMessage: (rawEvent: unknown) => {
     if (!rawEvent) return;
     const raw = rawEvent as Record<string, unknown>;
-    const message = (raw.messageData || raw.data || raw.message || raw) as ProjectChatMessage;
+    const message = (raw.messageData ||
+      raw.data ||
+      raw.message ||
+      raw) as ProjectChatMessage;
 
     if (!message || !message.id) return;
 
@@ -383,7 +409,10 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     });
   },
 
-  handlePinEvent: (data: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
+  handlePinEvent: (data: {
+    is_pinned: boolean;
+    message: ProjectChatMessage | null;
+  }) => {
     set((state) => {
       const updatedMessages = state.messages.map((m) => ({
         ...m,
@@ -410,7 +439,9 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
         return { typingUsers: [...state.typingUsers, user] };
       } else {
         return {
-          typingUsers: state.typingUsers.filter((u) => String(u.id) !== String(user.id)),
+          typingUsers: state.typingUsers.filter(
+            (u) => String(u.id) !== String(user.id)
+          ),
         };
       }
     });
@@ -469,17 +500,23 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
 
     // Single listener per event name
     channel
-      .listen('.ProjectMessageSent', (e: unknown) => {
+      .listen(".ProjectMessageSent", (e: unknown) => {
         get().receiveMessage(e);
       })
-      .listen('.ProjectMessagePinned', (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
-        get().handlePinEvent(e);
-      })
-      .listen('.TypingIndicator', (e: { user: TypingUser; is_typing: boolean }) => {
-        if (e?.user) {
-          get().handleTypingEvent(e.user, e.is_typing);
+      .listen(
+        ".ProjectMessagePinned",
+        (e: { is_pinned: boolean; message: ProjectChatMessage | null }) => {
+          get().handlePinEvent(e);
         }
-      });
+      )
+      .listen(
+        ".TypingIndicator",
+        (e: { user: TypingUser; is_typing: boolean }) => {
+          if (e?.user) {
+            get().handleTypingEvent(e.user, e.is_typing);
+          }
+        }
+      );
 
     set({ subscribedChannelNames: [targetChannel] });
   },
@@ -488,11 +525,15 @@ export const useProjectChatStore = create<ProjectChatState>((set, get) => ({
     const { subscribedChannelNames } = get();
     if (subscribedChannelNames.length === 0) return;
 
+    // Stop only the chat listeners: leaving the channel would also cut the board's TaskChanged listener.
     const echo = getEcho();
     if (echo) {
       subscribedChannelNames.forEach((chName) => {
-        echo.leave(`private-${chName}`);
-        echo.leave(chName);
+        echo
+          .private(chName)
+          .stopListening(".ProjectMessageSent")
+          .stopListening(".ProjectMessagePinned")
+          .stopListening(".TypingIndicator");
       });
     }
 

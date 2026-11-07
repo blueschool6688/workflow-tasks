@@ -1,10 +1,19 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
-import { Breadcrumb, Input, Dropdown, Avatar, Button, Switch, Select, Tooltip } from 'antd';
-import type { MenuProps } from 'antd';
+import * as React from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
+import {
+  Breadcrumb,
+  Input,
+  Dropdown,
+  Avatar,
+  Button,
+  Switch,
+  Select,
+  Tooltip,
+} from "antd";
+import type { MenuProps } from "antd";
 import {
   UserOutlined,
   LogoutOutlined,
@@ -13,12 +22,12 @@ import {
   MoonOutlined,
   MenuOutlined,
   FolderOutlined,
-} from '@ant-design/icons';
-import { useAuthStore } from '@/stores/authStore';
-import { useProjectChatStore } from '@/stores/projectChatStore';
-import { NotificationBell } from '@/features/notifications/components/NotificationBell';
-import { getProjectsApi, Project } from '@/features/projects/api/projectApi';
-import { ChatCircleDots } from '@phosphor-icons/react';
+} from "@ant-design/icons";
+import { useAuthStore } from "@/stores/authStore";
+import { useProjectChatStore } from "@/stores/projectChatStore";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
+import { getProjectsApi, Project } from "@/features/projects/api/projectApi";
+import { ChatCircleDots } from "@phosphor-icons/react";
 
 interface AppHeaderProps {
   onOpenMobile?: () => void;
@@ -33,26 +42,34 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
 
   const [projects, setProjects] = React.useState<Project[]>([]);
 
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
 
   // Load available projects
   React.useEffect(() => {
-    getProjectsApi().then((data) => {
-      if (Array.isArray(data) && data.length > 0) {
-        setProjects(data);
-      }
-    });
+    getProjectsApi()
+      .then(setProjects)
+      .catch(() => setProjects([]));
   }, []);
 
   // Extract active project key and sub-tab from pathname
-  const pathSegments = pathname.split('/').filter(Boolean);
-  const isProjectRoute = pathSegments[0] === 'projects' && pathSegments[1] && pathSegments[1] !== 'new';
-  const currentProjectKey = isProjectRoute ? pathSegments[1].toUpperCase() : null;
-  const currentSubTab = isProjectRoute && pathSegments[2] ? pathSegments.slice(2).join('/') : 'board';
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const isProjectRoute =
+    pathSegments[0] === "projects" &&
+    pathSegments[1] &&
+    pathSegments[1] !== "new";
+  const currentProjectKey = isProjectRoute
+    ? pathSegments[1].toUpperCase()
+    : null;
+  const currentSubTab =
+    isProjectRoute && pathSegments[2]
+      ? pathSegments.slice(2).join("/")
+      : "board";
 
   // Handle dynamic project switch across tabs
   const handleProjectSwitch = (newKey: string) => {
-    const selectedProj = projects.find((p) => p.key.toUpperCase() === newKey.toUpperCase());
+    const selectedProj = projects.find(
+      (p) => p.key.toUpperCase() === newKey.toUpperCase()
+    );
     if (selectedProj) {
       switchProject(String(selectedProj.id), selectedProj.key);
     }
@@ -68,15 +85,20 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
   const breadcrumbItems = [
     { title: <span className="text-zinc-400">Workspace</span> },
     ...pathSegments.map((segment, index) => {
-      const url = '/' + pathSegments.slice(0, index + 1).join('/');
+      const url = "/" + pathSegments.slice(0, index + 1).join("/");
       const label = segment.charAt(0).toUpperCase() + segment.slice(1);
       const isLast = index === pathSegments.length - 1;
 
       return {
         title: isLast ? (
-          <span className="font-semibold text-zinc-900 dark:text-zinc-100">{label}</span>
+          <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+            {label}
+          </span>
         ) : (
-          <a onClick={() => router.push(url)} className="text-zinc-500 hover:text-indigo-600">
+          <a
+            onClick={() => router.push(url)}
+            className="text-zinc-500 hover:text-indigo-600"
+          >
             {label}
           </a>
         ),
@@ -86,34 +108,34 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
 
   const handleLogout = () => {
     logout();
-    router.push('/login');
+    router.push("/login");
   };
 
-  const userMenuItems: MenuProps['items'] = [
+  const userMenuItems: MenuProps["items"] = [
     {
-      key: 'profile-header',
+      key: "profile-header",
       label: (
         <div className="px-1 py-1">
           <p className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 m-0">
-            {user?.name || 'User'}
+            {user?.name || "User"}
           </p>
           <p className="text-[11px] text-zinc-400 m-0">{user?.email}</p>
         </div>
       ),
       disabled: true,
     },
-    { type: 'divider' },
+    { type: "divider" },
     {
-      key: 'settings',
+      key: "settings",
       icon: <UserOutlined />,
-      label: 'Hồ sơ cá nhân',
-      onClick: () => router.push('/settings'),
+      label: "Hồ sơ cá nhân",
+      onClick: () => router.push("/settings"),
     },
     {
-      key: 'logout',
+      key: "logout",
       icon: <LogoutOutlined />,
       danger: true,
-      label: 'Đăng xuất',
+      label: "Đăng xuất",
       onClick: handleLogout,
     },
   ];
@@ -142,7 +164,9 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
                 label: (
                   <div className="flex items-center gap-1.5 truncate">
                     <FolderOutlined className="text-indigo-500 shrink-0" />
-                    <span className="font-mono font-bold text-xs">{p.key.toUpperCase()}</span>
+                    <span className="font-mono font-bold text-xs">
+                      {p.key.toUpperCase()}
+                    </span>
                     <span className="text-zinc-400 text-xs truncate hidden sm:inline">
                       - {p.name}
                     </span>
@@ -179,18 +203,22 @@ export function AppHeader({ onOpenMobile }: AppHeaderProps) {
         <NotificationBell />
         <Switch
           checked={isDark}
-          onChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+          onChange={(checked) => setTheme(checked ? "dark" : "light")}
           checkedChildren={<MoonOutlined />}
           unCheckedChildren={<SunOutlined />}
           className="bg-zinc-300 dark:bg-zinc-700"
         />
 
-        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
+        <Dropdown
+          menu={{ items: userMenuItems }}
+          placement="bottomRight"
+          trigger={["click"]}
+        >
           <Avatar
             className="cursor-pointer bg-indigo-600 font-bold hover:opacity-90 transition-opacity"
             size={36}
           >
-            {user?.name ? user.name.substring(0, 1).toUpperCase() : 'U'}
+            {user?.name ? user.name.substring(0, 1).toUpperCase() : "U"}
           </Avatar>
         </Dropdown>
       </div>

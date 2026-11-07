@@ -9,19 +9,7 @@ class ProjectPolicy
 {
     public function before(User $user, string $ability): ?bool
     {
-        if ($user->email === 'admin@tasks.local' || str_ends_with($user->email ?? '', '@tasks.local')) {
-            return true;
-        }
-
-        try {
-            if ($user->hasRole(['super-admin', 'admin'])) {
-                return true;
-            }
-        } catch (\Throwable) {
-            // Ignore if Spatie role not defined
-        }
-
-        return null;
+        return $user->isAdmin() ? true : null;
     }
 
     public function viewAny(User $user): bool
@@ -31,7 +19,7 @@ class ProjectPolicy
 
     public function view(User $user, Project $project): bool
     {
-        return true;
+        return $user->canAccessProject($project);
     }
 
     public function create(User $user): bool
@@ -52,5 +40,18 @@ class ProjectPolicy
     public function manageMembers(User $user, Project $project): bool
     {
         return $project->lead_id === $user->id;
+    }
+
+    public function manageWorkflow(User $user, Project $project): bool
+    {
+        if ($project->lead_id === $user->id) {
+            return true;
+        }
+
+        if ($project->workspace && $project->workspace->members()->where('users.id', $user->id)->whereIn('workspace_members.role', ['owner', 'admin'])->exists()) {
+            return true;
+        }
+
+        return $project->members()->where('users.id', $user->id)->whereIn('project_members.role_in_project', ['lead', 'admin', 'manager'])->exists();
     }
 }

@@ -38,8 +38,12 @@ class NotificationAndChatTest extends TestCase
         $this->project = Project::where('key', 'CORE-ENG')->first() ?? Project::first();
         $this->workspace = $this->project->workspace ?? Workspace::first();
 
-        $this->todoStatus = WorkflowStatus::where('name', 'To Do')->first() ?? WorkflowStatus::first();
-        $this->doneStatus = WorkflowStatus::where('name', 'Done')->first() ?? WorkflowStatus::where('id', '!=', $this->todoStatus->id)->first();
+        $statuses = WorkflowStatus::query()
+            ->when($this->project->workflow_id, fn ($q, $id) => $q->where('workflow_id', $id))
+            ->orderBy('order')
+            ->get();
+        $this->todoStatus = $statuses->firstWhere('name', 'To Do') ?? $statuses->first();
+        $this->doneStatus = $statuses->firstWhere('name', 'Done') ?? $statuses->where('id', '!=', $this->todoStatus->id)->first();
     }
 
     public function test_task_status_change_creates_notifications_for_assignee_and_reporter(): void

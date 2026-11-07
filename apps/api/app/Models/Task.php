@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\TaskChanged;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -54,6 +55,13 @@ class Task extends Model
         'custom_fields' => 'array',
     ];
 
+    protected static function booted(): void
+    {
+        foreach (['created', 'updated', 'deleted'] as $action) {
+            static::$action(fn (Task $task) => TaskChanged::dispatchFor($task->project_id, $action, $task->id));
+        }
+    }
+
     public function resolveRouteBinding($value, $field = null)
     {
         if ($field) {
@@ -70,13 +78,11 @@ class Task extends Model
             ->orWhere('task_number', $upper)
             ->first();
 
-        if ($task) {
+        if ($task || ! str_contains($value, '-')) {
             return $task;
         }
 
-        return $this->where('task_number', 'LIKE', "%-{$upper}")
-            ->orWhere('task_number', 'LIKE', "%{$upper}")
-            ->first();
+        return $this->where('task_number', 'LIKE', "%-{$upper}")->first();
     }
 
     public function project()

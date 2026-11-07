@@ -8,7 +8,7 @@ class UserPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->role === 'admin' || $user->hasRole('super-admin') || $user->hasRole('admin') || $user->email === 'admin@tasks.local';
+        return $user->isAdmin();
     }
 
     public function view(User $user, User $model): bool
@@ -18,16 +18,16 @@ class UserPolicy
 
     public function create(User $user): bool
     {
-        return $user->role === 'admin' || $user->hasRole('super-admin') || $user->hasRole('admin');
+        return $user->isAdmin();
     }
 
     public function update(User $authUser, User $targetUser): bool
     {
-        return $authUser->role === 'admin' || $authUser->hasRole('super-admin') || $authUser->hasRole('admin') || $authUser->id === $targetUser->id;
+        return $authUser->isAdmin() || $authUser->id === $targetUser->id;
     }
 
     public function delete(User $authUser, User $targetUser): bool
     {
-        return ($authUser->role === 'admin' || $authUser->hasRole('super-admin') || $authUser->hasRole('admin')) && $authUser->id !== $targetUser->id;
+        return $authUser->isAdmin() && $authUser->id !== $targetUser->id;
     }
 }

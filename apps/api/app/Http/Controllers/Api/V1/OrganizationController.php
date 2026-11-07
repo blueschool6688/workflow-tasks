@@ -14,7 +14,10 @@ class OrganizationController extends Controller
 {
     public function index(PaginationRequest $request): AnonymousResourceCollection
     {
+        $user = $request->user();
+
         $orgs = Organization::query()
+            ->when(! $user->isAdmin(), fn ($q) => $q->whereIn('id', $user->workspaces()->select('workspaces.organization_id')))
             ->orderBy($request->sortColumn(), $request->sortDirection())
             ->paginate($request->perPage());
 
@@ -23,6 +26,8 @@ class OrganizationController extends Controller
 
     public function show(Organization $organization): OrganizationResource
     {
+        $this->authorize('view', $organization);
+
         return new OrganizationResource($organization);
     }
 

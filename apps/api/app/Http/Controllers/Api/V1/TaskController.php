@@ -6,10 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\PaginationRequest;
 use App\Http\Resources\Api\V1\TaskResource;
 use App\Models\Project;
+use App\Models\Sprint;
 use App\Models\Task;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class TaskController extends Controller
 {
@@ -33,25 +37,7 @@ class TaskController extends Controller
         $tasks = Task::query()
             ->where('project_id', $project->id)
             ->with(['status', 'assignee', 'reporter', 'epic', 'sprint'])
-            ->when($request->input('sprint_id'), function ($q, $v) use ($project) {
-                if ($v === 'backlog' || $v === 'none') {
-                    return $q->whereNull('sprint_id');
-                }
-                if (\Illuminate\Support\Str::isUuid($v)) {
-                    return $q->where('sprint_id', $v);
-                }
-                $lower = strtolower($v);
-                $sprint = \App\Models\Sprint::where('project_id', $project->id)
-                    ->where(function ($sq) use ($lower, $v) {
-                        $sq->whereRaw('LOWER(name) LIKE ?', ["%{$lower}%"])
-                           ->orWhereRaw('LOWER(name) LIKE ?', ['%' . str_replace('-', ' ', $lower) . '%']);
-                    })
-                    ->first();
-                if ($sprint) {
-                    return $q->where('sprint_id', $sprint->id);
-                }
-                return $q->whereRaw('1 = 0');
-            })
+            ->when($request->input('sprint_id'), fn ($q, $v) => $this->filterBySprint($q, $v, $project))
             ->when($request->input('epic_id'), fn ($q, $v) => $q->where('epic_id', $v))
             ->when($request->input('assignee_id'), fn ($q, $v) => $q->where('assignee_id', $v))
             ->when($request->input('status_id'), fn ($q, $v) => $q->where('status_id', $v))
@@ -79,42 +65,12 @@ class TaskController extends Controller
         $sprintId = $request->input('sprint_id');
 
         $tasks = $project->tasks()
-            ->when($sprintId, function ($query, $sprintId) use ($project) {
-                if ($sprintId === 'backlog' || $sprintId === 'none') {
-                    return $query->whereNull('sprint_id');
-                }
-                if (\Illuminate\Support\Str::isUuid($sprintId)) {
-                    return $query->where('sprint_id', $sprintId);
-                }
-                $lower = strtolower($sprintId);
-                $sprint = \App\Models\Sprint::where('project_id', $project->id)
-                    ->where(function ($sq) use ($lower) {
-                        $sq->whereRaw('LOWER(name) LIKE ?', ["%{$lower}%"])
-                           ->orWhereRaw('LOWER(name) LIKE ?', ['%' . str_replace('-', ' ', $lower) . '%']);
-                    })
-                    ->first();
-                if ($sprint) {
-                    return $query->where('sprint_id', $sprint->id);
-                }
-                return $query->whereRaw('1 = 0');
-            })
+            ->when($sprintId, fn ($q, $v) => $this->filterBySprint($q, $v, $project))
             ->with(['status', 'assignee', 'reporter'])
             ->orderBy('order')
             ->get();
 
-        $user = $request->user();
-        $canManageWorkflow = false;
-        if ($user) {
-            if ($user->role === 'admin' || str_ends_with($user->email ?? '', '@tasks.local')) {
-                $canManageWorkflow = true;
-            } elseif ($project->lead_id === $user->id) {
-                $canManageWorkflow = true;
-            } elseif ($project->workspace && $project->workspace->members()->where('users.id', $user->id)->whereIn('workspace_members.role', ['owner', 'admin'])->exists()) {
-                $canManageWorkflow = true;
-            } elseif ($project->members()->where('users.id', $user->id)->whereIn('project_members.role_in_project', ['lead', 'admin', 'manager'])->exists()) {
-                $canManageWorkflow = true;
-            }
-        }
+        $canManageWorkflow = $request->user()->can('manageWorkflow', $project);
 
         $columns = $statuses->map(function ($status) use ($tasks) {
             $colTasks = $tasks->where('status_id', $status->id)->values();
@@ -143,22 +99,18 @@ class TaskController extends Controller
 
     public function store(Request $request, Project $project): JsonResponse
     {
-        $this->authorize('create', Task::class);
+        $this->authorize('view', $project);
 
         $validated = $request->validate([
             'title'            => 'required|string|max:500',
             'description'      => 'nullable|string',
             'type'             => 'sometimes|in:story,task,bug,subtask',
-            'status_id'        => 'nullable|uuid|exists:workflow_statuses,id',
-            'priority'         => 'sometimes|in:critical,high,medium,low,none',
+            'priority'         => 'sometimes|in:low,medium,high,urgent',
             'assignee_id'      => 'nullable|exists:users,id',
-            'sprint_id'        => 'nullable|uuid|exists:sprints,id',
-            'epic_id'          => 'nullable|uuid|exists:epics,id',
-            'parent_task_id'   => 'nullable|uuid|exists:tasks,id',
             'due_date'         => 'nullable|date',
             'estimate_minutes' => 'nullable|integer|min:0',
             'labels'           => 'nullable|array',
-        ]);
+        ] + $this->projectScopedRules($project, 'nullable'));
 
         if (empty($validated['type'])) {
             $validated['type'] = 'task';
@@ -174,15 +126,20 @@ class TaskController extends Controller
             $validated['status_id'] = $firstStatus?->id;
         }
 
-        $lastOrder = Task::where('project_id', $project->id)
-            ->where('status_id', $validated['status_id'])
-            ->max('order') ?? 0;
+        $task = DB::transaction(function () use ($project, $validated, $request) {
+            // Lock the project row so concurrent creates get distinct task numbers.
+            Project::whereKey($project->id)->lockForUpdate()->first();
 
-        $task = $project->tasks()->create(array_merge($validated, [
-            'reporter_id'  => $request->user()->id,
-            'order'        => $lastOrder + 1,
-            'task_number'  => $this->nextTaskNumber($project),
-        ]));
+            $lastOrder = Task::where('project_id', $project->id)
+                ->where('status_id', $validated['status_id'])
+                ->max('order') ?? 0;
+
+            return $project->tasks()->create(array_merge($validated, [
+                'reporter_id'  => $request->user()->id,
+                'order'        => $lastOrder + 1,
+                'task_number'  => $this->nextTaskNumber($project),
+            ]));
+        });
 
         return response()->json(['data' => new TaskResource($task->load(['status', 'assignee', 'reporter']))], 201);
     }
@@ -202,16 +159,12 @@ class TaskController extends Controller
             'title'            => 'sometimes|required|string|max:500',
             'description'      => 'nullable|string',
             'type'             => 'sometimes|in:story,task,bug,subtask',
-            'status_id'        => 'sometimes|uuid|exists:workflow_statuses,id',
-            'priority'         => 'sometimes|in:critical,high,medium,low,none',
+            'priority'         => 'sometimes|in:low,medium,high,urgent',
             'assignee_id'      => 'nullable|exists:users,id',
-            'sprint_id'        => 'nullable',
-            'epic_id'          => 'nullable|uuid|exists:epics,id',
-            'parent_task_id'   => 'nullable|uuid|exists:tasks,id',
             'due_date'         => 'nullable|date',
             'estimate_minutes' => 'nullable|integer|min:0',
             'labels'           => 'nullable|array',
-        ]);
+        ] + $this->projectScopedRules($task->project, 'sometimes'));
 
         $oldStatusId = $task->status_id;
         $oldStatusName = $task->status?->name ?? 'To Do';
@@ -257,7 +210,7 @@ class TaskController extends Controller
         $this->authorize('update', $task);
 
         $request->validate([
-            'status_id' => 'required|uuid|exists:workflow_statuses,id',
+            'status_id' => ['required', 'uuid', $this->statusRule($task->project)],
         ]);
 
         $oldStatusName = $task->status?->name ?? 'To Do';
@@ -289,7 +242,7 @@ class TaskController extends Controller
 
         $request->validate([
             'order'     => 'required|integer|min:1',
-            'status_id' => 'sometimes|uuid|exists:workflow_statuses,id',
+            'status_id' => ['sometimes', 'uuid', $this->statusRule($task->project)],
         ]);
 
         $task->update($request->only(['order', 'status_id']));
@@ -306,9 +259,50 @@ class TaskController extends Controller
 
     private function nextTaskNumber(Project $project): string
     {
-        $max = Task::where('project_id', $project->id)->max('task_number');
-        $next = $max ? ((int) substr($max, strlen($project->key) + 1)) + 1 : 1;
+        $prefix = $project->key . '-';
+        // shortcut: loads every task number of the project; move to a counter column past ~50k tasks per project.
+        $numbers = Task::where('project_id', $project->id)
+            ->where('task_number', 'like', $prefix . '%')
+            ->pluck('task_number')
+            ->map(fn ($n) => (int) substr($n, strlen($prefix)));
 
-        return $project->key . '-' . $next;
+        return $prefix . ($numbers->max() + 1);
+    }
+
+    private function filterBySprint($query, string $sprintId, Project $project)
+    {
+        if ($sprintId === 'backlog' || $sprintId === 'none') {
+            return $query->whereNull('sprint_id');
+        }
+        if (Str::isUuid($sprintId)) {
+            return $query->where('sprint_id', $sprintId);
+        }
+
+        $lower = strtolower($sprintId);
+        $sprint = Sprint::where('project_id', $project->id)
+            ->where(function ($sq) use ($lower) {
+                $sq->whereRaw('LOWER(name) LIKE ?', ["%{$lower}%"])
+                   ->orWhereRaw('LOWER(name) LIKE ?', ['%' . str_replace('-', ' ', $lower) . '%']);
+            })
+            ->first();
+
+        return $sprint ? $query->where('sprint_id', $sprint->id) : $query->whereRaw('1 = 0');
+    }
+
+    private function statusRule(Project $project)
+    {
+        return $project->workflow_id
+            ? Rule::exists('workflow_statuses', 'id')->where('workflow_id', $project->workflow_id)
+            : Rule::exists('workflow_statuses', 'id');
+    }
+
+    private function projectScopedRules(Project $project, string $presence): array
+    {
+        return [
+            'status_id'      => [$presence, 'nullable', 'uuid', $this->statusRule($project)],
+            'sprint_id'      => ['nullable', 'uuid', Rule::exists('sprints', 'id')->where('project_id', $project->id)],
+            'epic_id'        => ['nullable', 'uuid', Rule::exists('epics', 'id')->where('project_id', $project->id)],
+            'parent_task_id' => ['nullable', 'uuid', Rule::exists('tasks', 'id')->where('project_id', $project->id)],
+        ];
     }
 }

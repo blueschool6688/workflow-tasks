@@ -2,16 +2,19 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Events\TaskChanged;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\WorkflowResource;
 use App\Models\Project;
-use App\Models\User;
+use App\Models\Task;
 use App\Models\Workflow;
 use App\Models\WorkflowStatus;
 use App\Models\WorkflowTransition;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class WorkflowController extends Controller
 {
@@ -27,7 +30,7 @@ class WorkflowController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        abort_unless($this->isAdmin($request->user()), 403);
+        abort_unless($request->user()->isAdmin(), 403);
 
         $validated = $request->validate([
             'workspace_id' => 'required|uuid|exists:workspaces,id',
@@ -43,7 +46,7 @@ class WorkflowController extends Controller
 
     public function update(Request $request, Workflow $workflow): JsonResponse
     {
-        abort_unless($this->isAdmin($request->user()), 403);
+        abort_unless($request->user()->isAdmin(), 403);
 
         $workflow->update($request->validate([
             'name'        => 'sometimes|required|string|max:255',
@@ -56,7 +59,7 @@ class WorkflowController extends Controller
 
     public function destroy(Request $request, Workflow $workflow): JsonResponse
     {
-        abort_unless($this->isAdmin($request->user()), 403);
+        abort_unless($request->user()->isAdmin(), 403);
 
         $workflow->delete();
 
@@ -65,12 +68,12 @@ class WorkflowController extends Controller
 
     public function storeStatus(Request $request, Workflow $workflow): JsonResponse
     {
-        abort_unless($this->isAdmin($request->user()), 403);
+        abort_unless($request->user()->isAdmin(), 403);
 
         $validated = $request->validate([
             'name'     => 'required|string|max:100',
             'color'    => 'required|string|max:20',
-            'category' => 'required|in:todo,in_progress,done,cancelled',
+            'category' => 'required|in:todo,in_progress,done',
             'order'    => 'required|integer|min:1',
         ]);
 
@@ -81,12 +84,12 @@ class WorkflowController extends Controller
 
     public function updateStatus(Request $request, Workflow $workflow, WorkflowStatus $status): JsonResponse
     {
-        abort_unless($this->isAdmin($request->user()), 403);
+        abort_unless($request->user()->isAdmin(), 403);
 
         $status->update($request->validate([
             'name'     => 'sometimes|required|string|max:100',
             'color'    => 'sometimes|string|max:20',
-            'category' => 'sometimes|in:todo,in_progress,done,cancelled',
+            'category' => 'sometimes|in:todo,in_progress,done',
             'order'    => 'sometimes|integer|min:1',
         ]));
 
@@ -95,7 +98,7 @@ class WorkflowController extends Controller
 
     public function destroyStatus(Request $request, Workflow $workflow, WorkflowStatus $status): JsonResponse
     {
-        abort_unless($this->isAdmin($request->user()), 403);
+        abort_unless($request->user()->isAdmin(), 403);
 
         $status->delete();
 
@@ -111,7 +114,7 @@ class WorkflowController extends Controller
         $this->authorize('view', $project);
 
         $workflow = $this->ensureProjectWorkflow($project);
-        $canManage = $this->canUserManageProjectWorkflow($request->user(), $project);
+        $canManage = $request->user()->can('manageWorkflow', $project);
 
         return response()->json([
             'data' => new WorkflowResource($workflow->load(['statuses', 'transitions'])),
@@ -122,7 +125,7 @@ class WorkflowController extends Controller
 
     public function saveProjectWorkflow(Request $request, Project $project): JsonResponse
     {
-        abort_unless($this->canUserManageProjectWorkflow($request->user(), $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
+        abort_unless($request->user()->can('manageWorkflow', $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
 
         $validated = $request->validate([
             'workflow_id' => 'sometimes|nullable|uuid|exists:workflows,id',
@@ -150,14 +153,14 @@ class WorkflowController extends Controller
 
     public function storeProjectStatus(Request $request, Project $project): JsonResponse
     {
-        abort_unless($this->canUserManageProjectWorkflow($request->user(), $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
+        abort_unless($request->user()->can('manageWorkflow', $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
 
         $workflow = $this->ensureProjectWorkflow($project);
 
         $validated = $request->validate([
             'name'     => 'required|string|max:100',
             'color'    => 'sometimes|string|max:20',
-            'category' => 'sometimes|in:todo,in_progress,done,cancelled',
+            'category' => 'sometimes|in:todo,in_progress,done',
             'order'    => 'sometimes|integer|min:1',
         ]);
 
@@ -183,7 +186,7 @@ class WorkflowController extends Controller
 
     public function updateProjectStatus(Request $request, Project $project, WorkflowStatus $status): JsonResponse
     {
-        abort_unless($this->canUserManageProjectWorkflow($request->user(), $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
+        abort_unless($request->user()->can('manageWorkflow', $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
 
         $workflow = $this->ensureProjectWorkflow($project);
         abort_unless($status->workflow_id === $workflow->id, 404, 'Trạng thái không thuộc workflow của dự án.');
@@ -191,7 +194,7 @@ class WorkflowController extends Controller
         $validated = $request->validate([
             'name'     => 'sometimes|required|string|max:100',
             'color'    => 'sometimes|string|max:20',
-            'category' => 'sometimes|in:todo,in_progress,done,cancelled',
+            'category' => 'sometimes|in:todo,in_progress,done',
             'order'    => 'sometimes|integer|min:1',
         ]);
 
@@ -206,24 +209,26 @@ class WorkflowController extends Controller
 
     public function destroyProjectStatus(Request $request, Project $project, WorkflowStatus $status): JsonResponse
     {
-        abort_unless($this->canUserManageProjectWorkflow($request->user(), $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
+        abort_unless($request->user()->can('manageWorkflow', $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
 
         $workflow = $this->ensureProjectWorkflow($project);
         abort_unless($status->workflow_id === $workflow->id, 404, 'Trạng thái không thuộc workflow của dự án.');
 
-        // Reassign any tasks with this status to another status
         $fallbackStatus = $workflow->statuses()->where('id', '!=', $status->id)->orderBy('order')->first();
-        if ($fallbackStatus) {
-            $project->tasks()->where('status_id', $status->id)->update(['status_id' => $fallbackStatus->id]);
-        }
-
-        // Delete any transitions involving this status
-        WorkflowTransition::where('from_status_id', $status->id)
-            ->orWhere('to_status_id', $status->id)
-            ->delete();
+        abort_unless($fallbackStatus, 422, 'Không thể xóa trạng thái cuối cùng của quy trình.');
 
         $statusName = $status->name;
-        $status->delete();
+
+        DB::transaction(function () use ($status, $fallbackStatus) {
+            // The workflow can be shared, so move tasks from every project, not only this one.
+            Task::where('status_id', $status->id)->update(['status_id' => $fallbackStatus->id]);
+            WorkflowTransition::where('from_status_id', $status->id)
+                ->orWhere('to_status_id', $status->id)
+                ->delete();
+            $status->delete();
+        });
+
+        TaskChanged::dispatchFor($project->id, 'bulk');
 
         return response()->json([
             'workflow' => new WorkflowResource($workflow->fresh()->load(['statuses', 'transitions'])),
@@ -233,13 +238,13 @@ class WorkflowController extends Controller
 
     public function storeProjectTransition(Request $request, Project $project): JsonResponse
     {
-        abort_unless($this->canUserManageProjectWorkflow($request->user(), $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
+        abort_unless($request->user()->can('manageWorkflow', $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
 
         $workflow = $this->ensureProjectWorkflow($project);
 
         $validated = $request->validate([
-            'from_status_id' => 'required|uuid|exists:workflow_statuses,id',
-            'to_status_id'   => 'required|uuid|exists:workflow_statuses,id|different:from_status_id',
+            'from_status_id' => ['required', 'uuid', Rule::exists('workflow_statuses', 'id')->where('workflow_id', $workflow->id)],
+            'to_status_id'   => ['required', 'uuid', 'different:from_status_id', Rule::exists('workflow_statuses', 'id')->where('workflow_id', $workflow->id)],
             'name'           => 'nullable|string|max:100',
             'rules'          => 'nullable|array',
         ]);
@@ -257,7 +262,7 @@ class WorkflowController extends Controller
 
     public function destroyProjectTransition(Request $request, Project $project, WorkflowTransition $transition): JsonResponse
     {
-        abort_unless($this->canUserManageProjectWorkflow($request->user(), $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
+        abort_unless($request->user()->can('manageWorkflow', $project), 403, 'Bạn không có quyền quản lý workflow của dự án này.');
 
         $workflow = $this->ensureProjectWorkflow($project);
         abort_unless($transition->workflow_id === $workflow->id, 404, 'Quy tắc không thuộc workflow của dự án.');
@@ -273,42 +278,6 @@ class WorkflowController extends Controller
     // ==========================================
     // Helper Methods
     // ==========================================
-
-    private function isAdmin(?User $user): bool
-    {
-        if (! $user) {
-            return false;
-        }
-        if ($user->role === 'admin' || str_ends_with($user->email ?? '', '@tasks.local')) {
-            return true;
-        }
-        try {
-            return $user->hasRole(['super-admin', 'admin']);
-        } catch (\Throwable) {
-            return false;
-        }
-    }
-
-    public function canUserManageProjectWorkflow(?User $user, Project $project): bool
-    {
-        if (! $user) {
-            return false;
-        }
-        if ($this->isAdmin($user)) {
-            return true;
-        }
-        if ($project->lead_id === $user->id) {
-            return true;
-        }
-        if ($project->workspace && $project->workspace->members()->where('users.id', $user->id)->whereIn('workspace_members.role', ['owner', 'admin'])->exists()) {
-            return true;
-        }
-        if ($project->members()->where('users.id', $user->id)->whereIn('project_members.role_in_project', ['lead', 'admin', 'manager'])->exists()) {
-            return true;
-        }
-
-        return false;
-    }
 
     private function ensureProjectWorkflow(Project $project): Workflow
     {

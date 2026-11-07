@@ -50,22 +50,23 @@ class DashboardController extends Controller
     /** Project analytics — velocity, task distribution by status */
     public function stats(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $projects = $this->visibleProjects($request)->get(['id', 'name']);
 
-        $projects = Project::query()
-            ->when($user->role !== 'admin', fn ($q) => $q->whereHas('members', fn ($m) => $m->where('users.id', $user->id)))
-            ->with(['tasks' => fn ($q) => $q->with('status')])
-            ->get();
+        $counts = Task::query()
+            ->join('workflow_statuses', 'workflow_statuses.id', '=', 'tasks.status_id')
+            ->whereIn('tasks.project_id', $projects->pluck('id'))
+            ->groupBy('tasks.project_id', 'workflow_statuses.category')
+            ->selectRaw('tasks.project_id, workflow_statuses.category, COUNT(*) as total')
+            ->get()
+            ->groupBy('project_id');
 
-        $stats = $projects->map(function (Project $project) {
-            $tasks = $project->tasks;
-
-            $byStatus = $tasks->groupBy('status.category')->map->count();
+        $stats = $projects->map(function (Project $project) use ($counts) {
+            $byStatus = ($counts->get($project->id) ?? collect())->pluck('total', 'category')->map(fn ($n) => (int) $n);
 
             return [
                 'project_id'   => $project->id,
                 'project_name' => $project->name,
-                'total_tasks'  => $tasks->count(),
+                'total_tasks'  => $byStatus->sum(),
                 'by_status'    => $byStatus,
                 'completed'    => $byStatus->get('done', 0),
                 'in_progress'  => $byStatus->get('in_progress', 0),
@@ -85,7 +86,8 @@ class DashboardController extends Controller
 
         $tasks = Task::query()
             ->where('assignee_id', $user->id)
-            ->whereBetween('due_date', [$from, $to])
+            ->whereDate('due_date', '>=', $from)
+            ->whereDate('due_date', '<=', $to)
             ->with(['status', 'project'])
             ->orderBy('due_date')
             ->get();
@@ -96,35 +98,17 @@ class DashboardController extends Controller
     /** Global Summary — workspace-wide aggregations */
     public function summary(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $projectIds = $this->visibleProjects($request)->pluck('id');
+        $totalProjects = $projectIds->count();
 
-        $projectQuery = Project::query()
-            ->when($user->role !== 'admin', fn ($q) => $q->whereHas('members', fn ($m) => $m->where('users.id', $user->id)));
+        $byCategory = $this->countByCategory(Task::whereIn('tasks.project_id', $projectIds));
+        $totalTasks = array_sum($byCategory);
 
-        $totalProjects = (clone $projectQuery)->count();
-        $projectIds = (clone $projectQuery)->pluck('id');
-
-        $tasks = Task::whereIn('project_id', $projectIds)->with('status')->get();
-        $totalTasks = $tasks->count();
-
-        $byCategory = [
-            'todo'        => 0,
-            'in_progress' => 0,
-            'in_review'   => 0,
-            'done'        => 0,
-        ];
-
-        foreach ($tasks as $task) {
-            $cat = $task->status?->category ?? 'todo';
-            if (isset($byCategory[$cat])) {
-                $byCategory[$cat]++;
-            } else {
-                $byCategory['in_progress']++;
-            }
-        }
-
-        $totalEstimate = $tasks->sum('estimate_minutes') ?? 0;
-        $totalLogged   = $tasks->sum('time_spent_minutes') ?? 0;
+        $totals = Task::whereIn('project_id', $projectIds)
+            ->selectRaw('COALESCE(SUM(estimate_minutes), 0) as estimate, COALESCE(SUM(time_spent_minutes), 0) as logged')
+            ->first();
+        $totalEstimate = (int) $totals->estimate;
+        $totalLogged   = (int) $totals->logged;
         $activeSprints = Sprint::whereIn('project_id', $projectIds)->where('status', 'active')->count();
 
         $completionRate = $totalTasks > 0 ? round(($byCategory['done'] / $totalTasks) * 100, 1) : 0;
@@ -147,24 +131,8 @@ class DashboardController extends Controller
     {
         $this->authorize('view', $project);
 
-        $tasks = $project->tasks()->with(['status', 'assignee', 'epic', 'sprint'])->get();
-        $totalTasks = $tasks->count();
-
-        $byCategory = [
-            'todo'        => 0,
-            'in_progress' => 0,
-            'in_review'   => 0,
-            'done'        => 0,
-        ];
-
-        foreach ($tasks as $t) {
-            $cat = $t->status?->category ?? 'todo';
-            if (isset($byCategory[$cat])) {
-                $byCategory[$cat]++;
-            } else {
-                $byCategory['in_progress']++;
-            }
-        }
+        $byCategory = $this->countByCategory(Task::where('tasks.project_id', $project->id));
+        $totalTasks = array_sum($byCategory);
 
         $sprintsCount = $project->sprints()->count();
         $epicsCount   = $project->epics()->count();
@@ -189,5 +157,30 @@ class DashboardController extends Controller
                 'by_category'     => $byCategory,
             ],
         ]);
+    }
+
+    private function visibleProjects(Request $request)
+    {
+        $user = $request->user();
+
+        return Project::query()->when(! $user->isAdmin(), fn ($q) => $q->accessibleBy($user));
+    }
+
+    /** `in_review` stays at 0; the frontend still reads that key. */
+    private function countByCategory($taskQuery): array
+    {
+        $counts = $taskQuery
+            ->leftJoin('workflow_statuses', 'workflow_statuses.id', '=', 'tasks.status_id')
+            ->groupBy('workflow_statuses.category')
+            ->selectRaw('workflow_statuses.category, COUNT(*) as total')
+            ->pluck('total', 'category');
+
+        $byCategory = ['todo' => 0, 'in_progress' => 0, 'in_review' => 0, 'done' => 0];
+        foreach ($counts as $category => $total) {
+            $key = array_key_exists($category ?: 'todo', $byCategory) ? ($category ?: 'todo') : 'in_progress';
+            $byCategory[$key] += (int) $total;
+        }
+
+        return $byCategory;
     }
 }

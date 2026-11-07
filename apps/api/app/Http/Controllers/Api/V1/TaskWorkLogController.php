@@ -10,6 +10,7 @@ use App\Models\TaskWorkLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class TaskWorkLogController extends Controller
 {
@@ -37,7 +38,7 @@ class TaskWorkLogController extends Controller
 
     public function store(Request $request, Task $task): JsonResponse
     {
-        $this->authorize('view', $task);
+        $this->authorize('update', $task);
 
         $validated = $request->validate([
             'minutes_logged' => 'required|integer|min:1',
@@ -45,12 +46,17 @@ class TaskWorkLogController extends Controller
             'description'    => 'nullable|string|max:1000',
         ]);
 
-        $log = $task->workLogs()->create(array_merge($validated, [
-            'user_id'   => $request->user()->id,
-            'logged_at' => $validated['logged_at'] ?? now(),
-        ]));
+        $log = DB::transaction(function () use ($task, $validated, $request) {
+            $task->increment('time_spent_minutes', $validated['minutes_logged']);
 
-        $task->increment('time_spent_minutes', $validated['minutes_logged']);
+            return $task->workLogs()->create([
+                'user_id'        => $request->user()->id,
+                'action'         => 'log',
+                'minutes_logged' => $validated['minutes_logged'],
+                'note'           => $validated['description'] ?? null,
+                'logged_at'      => $validated['logged_at'] ?? now(),
+            ]);
+        });
 
         activity('task_workflow')
             ->performedOn($task)
@@ -72,22 +78,28 @@ class TaskWorkLogController extends Controller
             'description'    => 'nullable|string|max:1000',
         ]);
 
-        $worklog->update($validated);
+        DB::transaction(function () use ($worklog, $validated, $task, $oldMinutes) {
+            $worklog->update(array_filter([
+                'minutes_logged' => $validated['minutes_logged'] ?? null,
+                'note'           => $validated['description'] ?? null,
+            ], fn ($v) => $v !== null));
 
-        if (isset($validated['minutes_logged'])) {
-            $diff = $validated['minutes_logged'] - $oldMinutes;
-            $task->increment('time_spent_minutes', $diff);
-        }
+            if (isset($validated['minutes_logged'])) {
+                $task->increment('time_spent_minutes', $validated['minutes_logged'] - $oldMinutes);
+            }
+        });
 
         return response()->json(['data' => new TaskWorkLogResource($worklog->fresh()->load('user'))]);
     }
 
     public function destroy(Request $request, Task $task, TaskWorkLog $worklog): JsonResponse
     {
-        abort_unless($worklog->user_id === $request->user()->id || $request->user()->role === 'admin', 403);
+        abort_unless($worklog->user_id === $request->user()->id || $request->user()->isAdmin(), 403);
 
-        $task->decrement('time_spent_minutes', $worklog->minutes_logged);
-        $worklog->delete();
+        DB::transaction(function () use ($task, $worklog) {
+            $task->decrement('time_spent_minutes', $worklog->minutes_logged);
+            $worklog->delete();
+        });
 
         return response()->json(['message' => 'Work log đã bị xóa']);
     }

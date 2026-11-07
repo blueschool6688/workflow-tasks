@@ -36,9 +36,12 @@ class UserController extends Controller
         $validated = $request->validate([
             'name'      => 'sometimes|required|string|max:255',
             'email'     => 'sometimes|required|email|unique:users,email,' . $user->id,
-            'role'      => 'sometimes|in:admin,member',
             'is_active' => 'sometimes|boolean',
         ]);
+
+        if (! $request->user()->isAdmin()) {
+            unset($validated['is_active']);
+        }
 
         $user->update($validated);
 

@@ -63,7 +63,7 @@ class TaskCommentController extends Controller
     public function destroy(Request $request, Task $task, TaskComment $comment): JsonResponse
     {
         $isOwner = $comment->user_id === $request->user()->id;
-        $isAdmin = $request->user()->role === 'admin';
+        $isAdmin = $request->user()->isAdmin();
 
         abort_unless($isOwner || $isAdmin, 403, 'Không có quyền xóa bình luận này');
 

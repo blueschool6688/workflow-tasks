@@ -14,9 +14,14 @@ class TaskWorkLogResource extends JsonResource
             'task_id'        => $this->task_id,
             'user_id'        => $this->user_id,
             'user'           => $this->whenLoaded('user', fn () => new UserResource($this->user)),
+            'task'           => $this->whenLoaded('task', fn () => [
+                'id'          => $this->task->id,
+                'task_number' => $this->task->task_number,
+                'title'       => $this->task->title,
+            ]),
             'minutes_logged' => $this->minutes_logged,
             'logged_at'      => $this->logged_at?->toIso8601String(),
-            'description'    => $this->description,
+            'description'    => $this->note,
             'created_at'     => $this->created_at?->toIso8601String(),
         ];
     }

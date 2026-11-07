@@ -16,7 +16,7 @@ class PaginationRequest extends FormRequest
         return [
             'page'      => ['sometimes', 'integer', 'min:1'],
             'per_page'  => ['sometimes', 'integer', 'min:1', 'max:100'],
-            'sort'      => ['sometimes', 'string'],
+            'sort'      => ['sometimes', 'in:created_at,updated_at,name,title,email,key,task_number,priority,due_date,order,status'],
             'direction' => ['sometimes', 'in:asc,desc'],
         ];
     }

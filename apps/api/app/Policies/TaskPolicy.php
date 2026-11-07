@@ -9,11 +9,7 @@ class TaskPolicy
 {
     public function before(User $user, string $ability): ?bool
     {
-        if ($user->role === 'admin' || $user->hasRole('super-admin') || $user->hasRole('admin') || $user->email === 'admin@tasks.local') {
-            return true;
-        }
-
-        return null;
+        return $user->isAdmin() ? true : null;
     }
 
     public function viewAny(User $user): bool
@@ -23,17 +19,12 @@ class TaskPolicy
 
     public function view(User $user, Task $task): bool
     {
-        return true;
-    }
-
-    public function create(User $user): bool
-    {
-        return true;
+        return $user->canAccessProject($task->project);
     }
 
     public function update(User $user, Task $task): bool
     {
-        return true;
+        return $user->canAccessProject($task->project);
     }
 
     public function delete(User $user, Task $task): bool

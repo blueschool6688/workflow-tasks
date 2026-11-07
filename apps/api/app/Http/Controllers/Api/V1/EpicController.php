@@ -16,22 +16,14 @@ class EpicController extends Controller
     {
         $this->authorize('view', $project);
 
-        return EpicResource::collection($project->epics()->get());
+        return EpicResource::collection($project->epics()->withCount('tasks')->orderBy('created_at')->get());
     }
 
     public function store(Request $request, Project $project): JsonResponse
     {
         $this->authorize('update', $project);
 
-        $validated = $request->validate([
-            'title'       => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'color'       => 'nullable|string|max:20',
-            'start_date'  => 'nullable|date',
-            'end_date'    => 'nullable|date|after_or_equal:start_date',
-        ]);
-
-        $epic = $project->epics()->create(array_merge($validated, ['status' => 'open']));
+        $epic = $project->epics()->create($this->validated($request, 'required'));
 
         return response()->json(['data' => new EpicResource($epic)], 201);
     }
@@ -40,23 +32,14 @@ class EpicController extends Controller
     {
         $this->authorize('view', $project);
 
-        return new EpicResource($epic);
+        return new EpicResource($epic->loadCount('tasks'));
     }
 
     public function update(Request $request, Project $project, Epic $epic): JsonResponse
     {
         $this->authorize('update', $project);
 
-        $validated = $request->validate([
-            'title'       => 'sometimes|required|string|max:255',
-            'description' => 'nullable|string',
-            'color'       => 'nullable|string|max:20',
-            'status'      => 'sometimes|in:open,in_progress,done',
-            'start_date'  => 'nullable|date',
-            'end_date'    => 'nullable|date',
-        ]);
-
-        $epic->update($validated);
+        $epic->update($this->validated($request, 'sometimes|required'));
 
         return response()->json(['data' => new EpicResource($epic->fresh())]);
     }
@@ -68,5 +51,21 @@ class EpicController extends Controller
         $epic->delete();
 
         return response()->json(['message' => 'Epic đã bị xóa']);
+    }
+
+    /** API speaks title/description; the table stores name/summary. */
+    private function validated(Request $request, string $titleRule): array
+    {
+        $data = $request->validate([
+            'title'       => "{$titleRule}|string|max:255",
+            'description' => 'nullable|string',
+            'color'       => 'nullable|string|max:20',
+        ]);
+
+        return array_filter([
+            'name'    => $data['title'] ?? null,
+            'summary' => $data['description'] ?? null,
+            'color'   => $data['color'] ?? null,
+        ], fn ($v) => $v !== null);
     }
 }

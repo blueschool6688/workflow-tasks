@@ -104,7 +104,7 @@ class ProjectChatController extends Controller
         $this->authorize('view', $project);
 
         $request->validate([
-            'file' => 'required|file|max:20480', // 20MB max
+            'file' => ['required', 'file', 'max:20480', MediaController::SAFE_UPLOAD_MIMES],
         ]);
 
         $file = $request->file('file');
@@ -115,7 +115,7 @@ class ProjectChatController extends Controller
         $path = $file->store('chat-attachments/' . $project->id . '/' . now()->format('Y/m'), 'public');
         $url = Storage::disk('public')->url($path);
 
-        $isImage = str_starts_with($mime, 'image/') || in_array(strtolower($file->getClientOriginalExtension()), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']);
+        $isImage = str_starts_with($mime, 'image/');
 
         return response()->json([
             'data' => [

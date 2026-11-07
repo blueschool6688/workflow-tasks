@@ -9,11 +9,7 @@ class WorkspacePolicy
 {
     public function before(User $user, string $ability): ?bool
     {
-        if ($user->role === 'admin' || $user->hasRole('super-admin') || $user->hasRole('admin') || $user->email === 'admin@tasks.local') {
-            return true;
-        }
-
-        return null;
+        return $user->isAdmin() ? true : null;
     }
 
     public function viewAny(User $user): bool

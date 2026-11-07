@@ -20,7 +20,8 @@ class TaskResource extends JsonResource
             'status'           => $this->whenLoaded('status', fn () => [
                 'id'    => $this->status->id,
                 'name'  => $this->status->name,
-                'color' => $this->status->color,
+                'color'    => $this->status->color,
+                'category' => $this->status->category,
             ]),
             'priority'         => $this->priority,
             'assignee_id'      => $this->assignee_id,

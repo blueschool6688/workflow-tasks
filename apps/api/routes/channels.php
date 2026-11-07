@@ -19,34 +19,7 @@ Broadcast::channel('user.{id}', function ($user, $id) {
 });
 
 Broadcast::channel('project.{id}', function ($user, $id) {
-    if (\Illuminate\Support\Str::isUuid($id)) {
-        $project = \App\Models\Project::find($id);
-    } else {
-        $project = \App\Models\Project::where('key', $id)
-            ->orWhere('key', strtoupper($id))
-            ->orWhere('key', strtolower($id))
-            ->first();
-    }
+    $project = (new \App\Models\Project)->resolveRouteBinding($id);
 
-    if (!$project) {
-        return false;
-    }
-
-    if ($user->role === 'admin' || str_ends_with($user->email ?? '', '@tasks.local')) {
-        return true;
-    }
-
-    if ((string) $project->lead_id === (string) $user->id) {
-        return true;
-    }
-
-    if ($project->members()->where('users.id', $user->id)->exists()) {
-        return true;
-    }
-
-    if ($project->workspace_id && $user->workspaces()->where('workspaces.id', $project->workspace_id)->exists()) {
-        return true;
-    }
-
-    return false;
+    return $project && $user->canAccessProject($project);
 });

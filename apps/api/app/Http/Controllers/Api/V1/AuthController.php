@@ -119,7 +119,7 @@ class AuthController extends Controller
             'username'             => $user->username,
             'email'                => $user->email,
             'avatar'               => $user->avatar ? asset('storage/' . $user->avatar) : null,
-            'role'                 => $user->role ?? 'member',
+            'role'                 => $user->isAdmin() ? 'admin' : 'member',
             'current_workspace_id' => $user->current_workspace_id,
         ];
     }

@@ -12,7 +12,7 @@ class ActivityLogController extends Controller
 {
     public function index(PaginationRequest $request): JsonResponse
     {
-        abort_unless($request->user()->role === 'admin', 403);
+        abort_unless($request->user()->isAdmin(), 403);
 
         $logs = Activity::query()
             ->with('causer', 'subject')

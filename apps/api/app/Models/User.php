@@ -41,7 +41,26 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->is_active && ($this->hasRole(['super-admin', 'admin']) || str_ends_with($this->email, '@tasks.local'));
+        return $this->is_active && $this->isAdmin();
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->hasRole(['super-admin', 'admin']);
+    }
+
+    public function canAccessProject(Project $project): bool
+    {
+        if ($this->isAdmin() || (string) $project->lead_id === (string) $this->id) {
+            return true;
+        }
+
+        if ($project->members()->where('users.id', $this->id)->exists()) {
+            return true;
+        }
+
+        return $project->workspace_id
+            && $this->workspaces()->where('workspaces.id', $project->workspace_id)->exists();
     }
 
     public function currentWorkspace()
